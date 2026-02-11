@@ -498,14 +498,14 @@ export default function PortalView() {
   const selectedBoard = boards.find((b) => b.id === selectedBoardId);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff6f4,transparent_45%),linear-gradient(120deg,#f8fafc,#fdf7f5)]">
+    <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-4">
           <div className="flex items-center text-lg font-semibold text-gray-900">
             Soporte
           </div>
 
-          <div className="flex flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm">
+          <div className="flex flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
             <Search className="h-4 w-4 text-gray-400" />
             <input
               value={search}
@@ -516,13 +516,13 @@ export default function PortalView() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
               {loadingBoards ? "Loading boards..." : selectedBoard?.name || "Select a board"}
             </div>
             <select
               value={selectedBoardId || ""}
               onChange={(e) => setSelectedBoardId(e.target.value)}
-              className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm focus:outline-none"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm focus:outline-none"
             >
               <option value="" disabled>
                 Select board
@@ -539,12 +539,12 @@ export default function PortalView() {
             <div className="relative">
               <button
                 onClick={() => setActivityOpen((prev) => !prev)}
-                className="flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
+                className="flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
               >
                 <span className="relative">
                   <Bell className="h-4 w-4" />
                   {unreadActivityIds.size > 0 && (
-                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-sm bg-red-500" />
                   )}
                 </span>
                 Recent Activity
@@ -591,7 +591,7 @@ export default function PortalView() {
                           <div className="flex items-center justify-between text-xs font-semibold text-gray-400">
                             <span>{item.issueIdentifier}</span>
                             {unreadActivityIds.has(item.id) && (
-                              <span className="h-2 w-2 rounded-full bg-red-500" />
+                              <span className="h-2 w-2 rounded-sm bg-red-500" />
                             )}
                           </div>
                           <div className="font-medium text-gray-900">
@@ -609,14 +609,14 @@ export default function PortalView() {
             </div>
             <button
               onClick={() => setShowNewTicket(true)}
-              className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
             >
               <Plus className="h-4 w-4" />
               Crear ticket
             </button>
             <button
               onClick={openBoardSettings}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
               title="Board settings"
             >
               <Settings className="h-4 w-4" />
@@ -633,10 +633,10 @@ export default function PortalView() {
         ) : view === "table" ? (
           <div className="space-y-3">
             <div className="flex items-center justify-end">
-              <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
                 <button
                   onClick={() => setView("table")}
-                  className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
                     view === "table"
                       ? "bg-gray-900 text-white"
                       : "text-gray-600 hover:text-gray-900"
@@ -647,7 +647,7 @@ export default function PortalView() {
                 </button>
                 <button
                   onClick={() => setView("kanban")}
-                  className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
                     view === "kanban"
                       ? "bg-gray-900 text-white"
                       : "text-gray-600 hover:text-gray-900"
@@ -747,7 +747,7 @@ export default function PortalView() {
                       </td>
                       <td className="px-5 py-4" style={{ width: columnWidths.state }}>
                         <span
-                          className="inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold"
+                          className="inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold"
                           style={{
                             backgroundColor: `${ticket.stateColor}20`,
                             borderColor: `${ticket.stateColor}40`,
@@ -779,10 +779,10 @@ export default function PortalView() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-end">
-              <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
                 <button
                   onClick={() => setView("table")}
-                  className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
                     view === "table"
                       ? "bg-gray-900 text-white"
                       : "text-gray-600 hover:text-gray-900"
@@ -793,7 +793,7 @@ export default function PortalView() {
                 </button>
                 <button
                   onClick={() => setView("kanban")}
-                  className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
                     view === "kanban"
                       ? "bg-gray-900 text-white"
                       : "text-gray-600 hover:text-gray-900"
@@ -813,7 +813,7 @@ export default function PortalView() {
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                     <span
-                      className="h-2.5 w-2.5 rounded-full"
+                      className="h-2.5 w-2.5 rounded-sm"
                       style={{ backgroundColor: state.color }}
                     />
                     {state.name}
@@ -843,14 +843,14 @@ export default function PortalView() {
                         const badge = priorityBadge(ticket.priority);
                         const Icon = badge.icon;
                         return (
-                          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                          <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
                             {Icon ? <Icon className="h-3 w-3" /> : null}
                             {badge.label}
                           </div>
                         );
                       })()}
                       {ticket.dueDate && (
-                        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
                           <Calendar className="h-3 w-3" />
                           {new Date(ticket.dueDate).toLocaleDateString()}
                         </div>
@@ -877,7 +877,7 @@ export default function PortalView() {
               <h2 className="text-lg font-semibold text-gray-900">Board settings</h2>
               <button
                 onClick={() => setShowBoardSettings(false)}
-                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                className="rounded-md p-2 text-gray-500 hover:bg-gray-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -952,7 +952,7 @@ export default function PortalView() {
               <h2 className="text-lg font-semibold text-gray-900">Nuevo Ticket</h2>
               <button
                 onClick={() => setShowNewTicket(false)}
-                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                className="rounded-md p-2 text-gray-500 hover:bg-gray-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1031,7 +1031,7 @@ export default function PortalView() {
               </div>
               <button
                 onClick={() => setDetailsOpen(false)}
-                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                className="rounded-md p-2 text-gray-500 hover:bg-gray-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1049,7 +1049,7 @@ export default function PortalView() {
                     <>
                       <div className="flex flex-wrap items-center gap-3">
                         <span
-                          className="inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold"
+                          className="inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold"
                           style={{
                             backgroundColor: `${details.stateColor}20`,
                             borderColor: `${details.stateColor}40`,
@@ -1066,7 +1066,7 @@ export default function PortalView() {
                           const badge = priorityBadge(details.priority);
                           const Icon = badge.icon;
                           return (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
                               {Icon ? <Icon className="h-3 w-3" /> : null}
                               {badge.label}
                             </span>
@@ -1145,7 +1145,7 @@ export default function PortalView() {
                       <button
                         onClick={handleCommentSubmit}
                         disabled={commentSubmitting}
-                        className="rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                        className="rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
                       >
                         {commentSubmitting ? "Posting..." : "Post comment"}
                       </button>

@@ -44,6 +44,9 @@ A bidirectional ticket support platform integrated with Linear, built with Next.
 -   **Styling**: Tailwind CSS v4, Font: Plus Jakarta Sans
 -   **Integration**: Linear SDK
 
+## Arquitectura y Flujos
+-   Documento completo: `docs/arquitectura-sistemas.md`
+
 ## Design System
 -   Primary Color: `#FC6F5D`
 -   Design tokens are configured in `app/globals.css`.
