@@ -22,6 +22,13 @@ export async function createTicket(data: {
       return { success: false, error: "Board not found." };
     }
 
+    if (board.type === "PROJECT") {
+      return {
+        success: false,
+        error: "This board is read-only. New tickets can only be created in support boards.",
+      };
+    }
+
     const issuePayload: any = {
       teamId: board.teamId,
       title: data.title,

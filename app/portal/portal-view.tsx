@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   Settings,
   Plus,
   LayoutGrid,
   List,
+  ArrowUpDown,
+  ChevronDown,
   ExternalLink,
   Loader2,
   Calendar,
@@ -14,29 +17,39 @@ import {
   MessageSquare,
   Paperclip,
   X,
+  GripVertical,
+  Trash2,
   AlertTriangle,
   SignalHigh,
   SignalMedium,
   SignalLow,
-  ArrowUp,
-  ArrowDown,
   Bell,
 } from "lucide-react";
-import { getBoards, createBoard } from "@/app/actions/boards";
+import { getBoards } from "@/app/actions/boards";
 import {
   createIssueComment,
   getBoardTickets,
   getIssueDetails,
   getRecentActivity,
 } from "@/app/actions/portal";
-import { getTeams, getProjects } from "@/app/actions/linear";
 import { createTicket } from "@/app/actions/tickets";
 
 type Board = {
   id: string;
   name: string;
+  type: "SUPPORT" | "PROJECT";
+  accountId: string;
+  account: {
+    id: string;
+    name: string;
+  };
   teamId: string;
   projectId?: string | null;
+};
+
+type AccountOption = {
+  id: string;
+  name: string;
 };
 
 type Ticket = {
@@ -45,6 +58,8 @@ type Ticket = {
   title: string;
   description?: string | null;
   dueDate?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   url?: string | null;
   priority?: number | null;
   state: string;
@@ -62,8 +77,27 @@ type WorkflowState = {
   color: string;
 };
 
+type SortField = "createdAt" | "updatedAt" | "priority" | "title" | "owner" | "state";
+type SortDirection = "asc" | "desc";
+type SortRule = { id: string; field: SortField; direction: SortDirection };
+const EMPTY_SORTS: SortRule[] = [];
+
+const SORT_FIELD_OPTIONS: Array<{ value: SortField; label: string }> = [
+  { value: "createdAt", label: "Fecha creación" },
+  { value: "updatedAt", label: "Fecha modificación" },
+  { value: "priority", label: "Prioridad" },
+  { value: "title", label: "Título" },
+  { value: "owner", label: "Owner" },
+  { value: "state", label: "Estado" },
+];
+
 export default function PortalView() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [boards, setBoards] = useState<Board[]>([]);
+  const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [portalType, setPortalType] = useState<"SUPPORT" | "PROJECT">("SUPPORT");
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [loadingBoards, setLoadingBoards] = useState(true);
 
@@ -72,41 +106,31 @@ export default function PortalView() {
   const [loadingTickets, setLoadingTickets] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"table" | "kanban">("kanban");
-  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" | "none" }>({
-    key: "createdAt",
-    dir: "none",
-  });
+  const [viewByBoard, setViewByBoard] = useState<Record<string, "table" | "kanban">>({});
+  const [sortsByBoard, setSortsByBoard] = useState<Record<string, SortRule[]>>({});
+  const [sortOpen, setSortOpen] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
     title: 280,
-    description: 360,
     owner: 180,
     state: 140,
+    createdAt: 160,
     dueDate: 140,
-    priority: 120,
   });
   const resizeState = useRef<{
     key: string;
     startX: number;
     startWidth: number;
   } | null>(null);
+  const ticketCacheRef = useRef<
+    Map<string, { tickets: Ticket[]; states: WorkflowState[]; fetchedAt: number }>
+  >(new Map());
 
-  const [showBoardSettings, setShowBoardSettings] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activity, setActivity] = useState<any[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [unreadActivityIds, setUnreadActivityIds] = useState<Set<string>>(new Set());
-
-  const [boardForm, setBoardForm] = useState({
-    name: "",
-    teamId: "",
-    projectId: "",
-  });
-  const [teamOptions, setTeamOptions] = useState<any[]>([]);
-  const [projectOptions, setProjectOptions] = useState<any[]>([]);
-  const [savingBoard, setSavingBoard] = useState(false);
-  const [boardError, setBoardError] = useState<string | null>(null);
+  const [seenActivityIds, setSeenActivityIds] = useState<Set<string>>(new Set());
 
   const [newTicket, setNewTicket] = useState({
     title: "",
@@ -123,29 +147,97 @@ export default function PortalView() {
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
 
+  const requestedAccountId = searchParams.get("account");
+  const requestedType = searchParams.get("type");
+
+  const scopedBoards = useMemo(
+    () =>
+      boards.filter(
+        (board) => board.accountId === selectedAccountId && board.type === portalType
+      ),
+    [boards, selectedAccountId, portalType]
+  );
+
+  const view = selectedBoardId ? (viewByBoard[selectedBoardId] ?? "kanban") : "kanban";
+  const sorts = selectedBoardId ? (sortsByBoard[selectedBoardId] ?? EMPTY_SORTS) : EMPTY_SORTS;
+
   useEffect(() => {
     async function loadBoards() {
       setLoadingBoards(true);
       const res = await getBoards();
       if (res.success) {
-        setBoards(res.data);
-        if (res.data.length > 0) {
-          setSelectedBoardId(res.data[0].id);
+        const nextBoards = res.data as Board[];
+        setBoards(nextBoards);
+
+        const uniqueAccounts = new Map<string, AccountOption>();
+        nextBoards.forEach((board) => {
+          uniqueAccounts.set(board.account.id, board.account);
+        });
+        const sortedAccounts = [...uniqueAccounts.values()].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+        setAccounts(sortedAccounts);
+        if (sortedAccounts.length > 0) {
+          const hasRequested = requestedAccountId
+            ? sortedAccounts.some((account) => account.id === requestedAccountId)
+            : false;
+          setSelectedAccountId((prev) =>
+            hasRequested ? requestedAccountId || sortedAccounts[0].id : prev || sortedAccounts[0].id
+          );
         }
       }
       setLoadingBoards(false);
     }
     loadBoards();
-  }, []);
+  }, [requestedAccountId]);
 
   useEffect(() => {
-    if (!selectedBoardId) return;
+    if (requestedType === "PROJECT" || requestedType === "SUPPORT") {
+      setPortalType(requestedType);
+    }
+  }, [requestedType]);
+
+  useEffect(() => {
+    if (!selectedAccountId) {
+      setSelectedBoardId(null);
+      return;
+    }
+    if (scopedBoards.length === 0) {
+      setSelectedBoardId(null);
+      return;
+    }
+    const alreadySelected = scopedBoards.some((board) => board.id === selectedBoardId);
+    if (!alreadySelected) {
+      setSelectedBoardId(scopedBoards[0].id);
+    }
+  }, [scopedBoards, selectedAccountId, selectedBoardId]);
+
+  useEffect(() => {
+    if (!selectedBoardId) {
+      setTickets([]);
+      setStates([]);
+      setSortOpen(false);
+      return;
+    }
     async function loadTickets() {
+      const cached = ticketCacheRef.current.get(selectedBoardId);
+      if (cached && Date.now() - cached.fetchedAt < 30_000) {
+        setTickets(cached.tickets);
+        setStates(cached.states);
+        setLoadingTickets(false);
+        return;
+      }
+
       setLoadingTickets(true);
       const res = await getBoardTickets(selectedBoardId);
       if (res.success) {
         setTickets(res.data.tickets);
         setStates(res.data.states);
+        ticketCacheRef.current.set(selectedBoardId, {
+          tickets: res.data.tickets,
+          states: res.data.states,
+          fetchedAt: Date.now(),
+        });
       } else {
         setTickets([]);
         setStates([]);
@@ -156,18 +248,122 @@ export default function PortalView() {
   }, [selectedBoardId]);
 
   useEffect(() => {
+    if (!selectedBoardId) return;
+    const storageKey = `portal-board-pref:${selectedBoardId}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        view?: "table" | "kanban";
+        sorts?: SortRule[];
+      };
+      if (parsed.view === "table" || parsed.view === "kanban") {
+        setViewByBoard((prev) => ({ ...prev, [selectedBoardId]: parsed.view! }));
+      }
+      if (Array.isArray(parsed.sorts)) {
+        const normalized = parsed.sorts
+          .filter((rule) => typeof rule?.field === "string" && typeof rule?.direction === "string")
+          .map((rule, index) => ({
+            id: rule.id || `sort-${index}-${Date.now()}`,
+            field: rule.field as SortField,
+            direction: rule.direction as SortDirection,
+          }));
+        setSortsByBoard((prev) => ({ ...prev, [selectedBoardId]: normalized }));
+      }
+    } catch {
+      // no-op
+    }
+  }, [selectedBoardId]);
+
+  useEffect(() => {
+    if (!selectedBoardId) return;
+    try {
+      localStorage.setItem(
+        `portal-board-pref:${selectedBoardId}`,
+        JSON.stringify({ view, sorts })
+      );
+    } catch {
+      // no-op
+    }
+  }, [selectedBoardId, view, sorts]);
+
+  useEffect(() => {
+    if (!selectedBoardId) {
+      setSeenActivityIds(new Set());
+      return;
+    }
+    const storageKey = `activity-seen:${selectedBoardId}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        setSeenActivityIds(new Set());
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setSeenActivityIds(new Set(parsed));
+      } else {
+        setSeenActivityIds(new Set());
+      }
+    } catch {
+      setSeenActivityIds(new Set());
+    }
+  }, [selectedBoardId]);
+
+  useEffect(() => {
+    if (!selectedBoardId) {
+      setActivity([]);
+      setActivityLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    async function refreshActivity(showLoader: boolean) {
+      if (showLoader) setActivityLoading(true);
+      const res = await getRecentActivity(selectedBoardId);
+      if (!cancelled && res.success) {
+        setActivity(res.data);
+      }
+      if (showLoader) setActivityLoading(false);
+    }
+
+    // Initial and periodic sync to detect deltas without opening the popover.
+    refreshActivity(false);
+    const intervalId = window.setInterval(() => {
+      refreshActivity(false);
+    }, 20000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [selectedBoardId]);
+
+  useEffect(() => {
     if (!selectedBoardId || !activityOpen) return;
-    async function loadActivity() {
+    let cancelled = false;
+    async function refreshOnOpen() {
       setActivityLoading(true);
       const res = await getRecentActivity(selectedBoardId);
-      if (res.success) {
+      if (!cancelled && res.success) {
         setActivity(res.data);
-        setUnreadActivityIds(new Set(res.data.map((item: any) => item.id)));
       }
-      setActivityLoading(false);
+      if (!cancelled) setActivityLoading(false);
     }
-    loadActivity();
+    refreshOnOpen();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedBoardId, activityOpen]);
+
+  useEffect(() => {
+    const unread = new Set(
+      activity
+        .map((item: any) => item.id)
+        .filter((id: string) => !seenActivityIds.has(id))
+    );
+    setUnreadActivityIds(unread);
+  }, [activity, seenActivityIds]);
 
   const filteredTickets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -180,45 +376,54 @@ export default function PortalView() {
   }, [tickets, search]);
 
   const sortedTickets = useMemo(() => {
-    if (sort.dir === "none") return filteredTickets;
     const sorted = [...filteredTickets];
-    const getValue = (ticket: any) => {
-      switch (sort.key) {
-        case "title":
-          return ticket.title || "";
-        case "description":
-          return ticket.description || "";
-        case "owner":
-          return ticket.assigneeName || "";
-        case "state":
-          return ticket.state || "";
-        case "dueDate":
-          return ticket.dueDate || "";
-        case "priority":
-          return ticket.priority ?? 0;
-        case "createdAt":
-        default:
-          return ticket.createdAt || "";
+    const compareByRule = (a: Ticket, b: Ticket, rule: SortRule) => {
+      if (rule.field === "priority") {
+        const pa = a.priority ?? 0;
+        const pb = b.priority ?? 0;
+        if (rule.direction === "asc") {
+          // "No priority" goes to the bottom in ascending.
+          if (pa === 0 && pb === 0) return 0;
+          if (pa === 0) return 1;
+          if (pb === 0) return -1;
+          return pa - pb;
+        }
+        return pb - pa;
       }
+
+      let va = "";
+      let vb = "";
+      if (rule.field === "createdAt") {
+        va = a.createdAt || "";
+        vb = b.createdAt || "";
+      } else if (rule.field === "updatedAt") {
+        va = a.updatedAt || "";
+        vb = b.updatedAt || "";
+      } else if (rule.field === "title") {
+        va = a.title || "";
+        vb = b.title || "";
+      } else if (rule.field === "owner") {
+        va = a.assigneeName || "";
+        vb = b.assigneeName || "";
+      } else if (rule.field === "state") {
+        va = a.state || "";
+        vb = b.state || "";
+      }
+
+      if (va < vb) return rule.direction === "asc" ? -1 : 1;
+      if (va > vb) return rule.direction === "asc" ? 1 : -1;
+      return 0;
     };
+
     sorted.sort((a, b) => {
-      const va = getValue(a);
-      const vb = getValue(b);
-      if (va < vb) return sort.dir === "asc" ? -1 : 1;
-      if (va > vb) return sort.dir === "asc" ? 1 : -1;
+      for (const rule of sorts) {
+        const result = compareByRule(a, b, rule);
+        if (result !== 0) return result;
+      }
       return 0;
     });
     return sorted;
-  }, [filteredTickets, sort]);
-
-  const onSort = (key: string) => {
-    setSort((prev) => {
-      if (prev.key !== key) return { key, dir: "asc" };
-      if (prev.dir === "asc") return { key, dir: "desc" };
-      if (prev.dir === "desc") return { key, dir: "none" };
-      return { key, dir: "asc" };
-    });
-  };
+  }, [filteredTickets, sorts]);
 
   const onResizeStart = (key: string, startX: number) => {
     resizeState.current = {
@@ -253,66 +458,52 @@ export default function PortalView() {
     };
   }, [columnWidths]);
 
+  const orderedStates = useMemo(() => {
+    const phaseOrder: Record<string, number> = {
+      nuevo: 0,
+      planned: 1,
+      planeado: 1,
+      "en progreso": 2,
+      "in progress": 2,
+      escalado: 3,
+      resuelto: 4,
+      cerrado: 5,
+      cancelado: 6,
+    };
+
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+
+    return [...states].sort((a, b) => {
+      const ra = phaseOrder[normalize(a.name)];
+      const rb = phaseOrder[normalize(b.name)];
+      const va = ra === undefined ? 999 : ra;
+      const vb = rb === undefined ? 999 : rb;
+      if (va !== vb) return va - vb;
+      return a.name.localeCompare(b.name);
+    });
+  }, [states]);
+
   const groupedTickets = useMemo(() => {
     const map = new Map<string, Ticket[]>();
-    states.forEach((state) => map.set(state.id, []));
-    filteredTickets.forEach((ticket) => {
+    orderedStates.forEach((state) => map.set(state.id, []));
+    sortedTickets.forEach((ticket) => {
       const key = ticket.stateId || ticket.state;
       if (!map.has(key)) map.set(key, []);
       map.get(key)?.push(ticket);
     });
     return map;
-  }, [filteredTickets, states]);
-
-  async function openBoardSettings() {
-    setShowBoardSettings(true);
-    if (teamOptions.length === 0) {
-      const res = await getTeams();
-      if (res.success) {
-        setTeamOptions(res.data);
-        if (res.data.length > 0) {
-          setBoardForm((prev) => ({ ...prev, teamId: res.data[0].id }));
-        }
-      }
-    }
-  }
-
-  useEffect(() => {
-    if (!boardForm.teamId) return;
-    async function loadProjects() {
-      const res = await getProjects(boardForm.teamId);
-      if (res.success) {
-        setProjectOptions(res.data);
-      }
-    }
-    loadProjects();
-  }, [boardForm.teamId]);
-
-  async function handleCreateBoard() {
-    if (!boardForm.name || !boardForm.teamId) {
-      setBoardError("Board name and team are required.");
-      return;
-    }
-
-    setSavingBoard(true);
-    setBoardError(null);
-    const res = await createBoard({
-      name: boardForm.name,
-      teamId: boardForm.teamId,
-      projectId: boardForm.projectId || null,
-    });
-    if (res.success) {
-      setBoards([res.data, ...boards]);
-      setSelectedBoardId(res.data.id);
-      setBoardForm({ name: "", teamId: boardForm.teamId, projectId: "" });
-      setShowBoardSettings(false);
-    } else {
-      setBoardError(res.error || "Failed to create board.");
-    }
-    setSavingBoard(false);
-  }
+  }, [sortedTickets, orderedStates]);
 
   async function handleCreateTicket() {
+    if (selectedBoard?.type === "PROJECT") {
+      setTicketError("Este portal de proyecto es solo lectura para crear tickets.");
+      return;
+    }
     if (!selectedBoardId || !newTicket.title || !newTicket.description) {
       setTicketError("Title and description are required.");
       return;
@@ -332,6 +523,11 @@ export default function PortalView() {
       if (reload.success) {
         setTickets(reload.data.tickets);
         setStates(reload.data.states);
+        ticketCacheRef.current.set(selectedBoardId, {
+          tickets: reload.data.tickets,
+          states: reload.data.states,
+          fetchedAt: Date.now(),
+        });
       }
     } else {
       setTicketError(res.error || "Failed to create ticket.");
@@ -495,51 +691,81 @@ export default function PortalView() {
     return { label: "Low", icon: SignalLow };
   }
 
-  const selectedBoard = boards.find((b) => b.id === selectedBoardId);
+  const selectedAccountName =
+    accounts.find((account) => account.id === selectedAccountId)?.name || "Soporte";
+  const selectedBoard = boards.find((b) => b.id === selectedBoardId) || null;
 
+  function updateBoardView(nextView: "table" | "kanban") {
+    if (!selectedBoardId) return;
+    setViewByBoard((prev) => ({
+      ...prev,
+      [selectedBoardId]: nextView,
+    }));
+  }
+
+  function updateBoardSorts(
+    updater: SortRule[] | ((previous: SortRule[]) => SortRule[])
+  ) {
+    if (!selectedBoardId) return;
+    setSortsByBoard((prev) => {
+      const current = prev[selectedBoardId] ?? [];
+      const next = typeof updater === "function" ? updater(current) : updater;
+      return {
+        ...prev,
+        [selectedBoardId]: next,
+      };
+    });
+  }
+
+  function markAsSeen(ids: string[]) {
+    if (!selectedBoardId || ids.length === 0) return;
+    setSeenActivityIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      try {
+        localStorage.setItem(`activity-seen:${selectedBoardId}`, JSON.stringify([...next]));
+      } catch {
+        // no-op
+      }
+      return next;
+    });
+  }
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-4">
-          <div className="flex items-center text-lg font-semibold text-gray-900">
-            Soporte
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-6 py-4">
+          <div className="flex min-w-fit items-center text-lg font-semibold text-gray-900">
+            {selectedAccountName}
           </div>
 
-          <div className="flex flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
-            <Search className="h-4 w-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tickets..."
-              className="w-full bg-transparent text-sm text-gray-700 outline-none"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
-              {loadingBoards ? "Loading boards..." : selectedBoard?.name || "Select a board"}
+          <div className="flex flex-1 items-center justify-center gap-3">
+            <div className="flex h-10 w-full max-w-[560px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 shadow-sm">
+              <Search className="h-4 w-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tickets..."
+                className="w-full bg-transparent text-sm text-gray-700 outline-none"
+              />
             </div>
-            <select
-              value={selectedBoardId || ""}
-              onChange={(e) => setSelectedBoardId(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm focus:outline-none"
-            >
-              <option value="" disabled>
-                Select board
-              </option>
-              {boards.map((board) => (
-                <option key={board.id} value={board.id}>
-                  {board.name}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="hidden items-center gap-2 md:flex">
+            <select
+              value={selectedAccountId || ""}
+              onChange={(e) => setSelectedAccountId(e.target.value || null)}
+              className="h-10 min-w-[180px] rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm focus:outline-none"
+            >
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
             <div className="relative">
               <button
                 onClick={() => setActivityOpen((prev) => !prev)}
-                className="flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
+                className="flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
               >
                 <span className="relative">
                   <Bell className="h-4 w-4" />
@@ -547,18 +773,19 @@ export default function PortalView() {
                     <span className="absolute -right-1 -top-1 h-2 w-2 rounded-sm bg-red-500" />
                   )}
                 </span>
-                Recent Activity
+                Actividad Reciente
               </button>
               {activityOpen && (
                 <div className="absolute right-0 top-11 w-80 rounded-xl border border-gray-200 bg-white p-3 shadow-xl animate-fade-in">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                      Recent Activity
+                      Actividad Reciente
                     </div>
                     <button
                       onClick={() => {
+                        const allIds = activity.map((item: any) => item.id);
+                        markAsSeen(allIds);
                         setActivity([]);
-                        setUnreadActivityIds(new Set());
                       }}
                       className="text-xs font-semibold text-gray-500 hover:text-gray-900"
                     >
@@ -577,12 +804,8 @@ export default function PortalView() {
                         <button
                           key={item.id}
                           onClick={() => {
+                            markAsSeen([item.id]);
                             setActivity((prev) => prev.filter((entry) => entry.id !== item.id));
-                            setUnreadActivityIds((prev) => {
-                              const next = new Set(prev);
-                              next.delete(item.id);
-                              return next;
-                            });
                             setActivityOpen(false);
                             openDetails(item.issueId);
                           }}
@@ -608,15 +831,8 @@ export default function PortalView() {
               )}
             </div>
             <button
-              onClick={() => setShowNewTicket(true)}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" />
-              Crear ticket
-            </button>
-            <button
-              onClick={openBoardSettings}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
+              onClick={() => router.push("/portal/settings")}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
               title="Board settings"
             >
               <Settings className="h-4 w-4" />
@@ -626,38 +842,191 @@ export default function PortalView() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setSortOpen((prev) => !prev)}
+              disabled={!selectedBoardId}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <ArrowUpDown className="h-4 w-4" />
+              Ordenar
+              {sorts.length > 0 && (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-md bg-gray-900 px-1.5 py-0.5 text-xs font-semibold text-white">
+                  {sorts.length}
+                </span>
+              )}
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            </button>
+            {sortOpen && (
+              <div className="absolute left-0 top-11 z-20 w-96 rounded-xl border border-gray-200 bg-white p-3 shadow-xl animate-fade-in">
+                <div className="space-y-2">
+                  {sorts.map((rule) => (
+                    <div
+                      key={rule.id}
+                      className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50/60 p-2"
+                    >
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-semibold text-gray-500">
+                        {sorts.findIndex((item) => item.id === rule.id) + 1}
+                      </span>
+                      <GripVertical className="h-4 w-4 text-gray-300" />
+                      <select
+                        value={rule.field}
+                        onChange={(e) =>
+                          updateBoardSorts((prev) =>
+                            prev.map((item) =>
+                              item.id === rule.id
+                                ? {
+                                    ...item,
+                                    field: e.target.value as SortField,
+                                  }
+                                : item
+                            )
+                          )
+                        }
+                        className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:outline-none"
+                      >
+                        {SORT_FIELD_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={rule.direction}
+                        onChange={(e) =>
+                          updateBoardSorts((prev) =>
+                            prev.map((item) =>
+                              item.id === rule.id
+                                ? {
+                                    ...item,
+                                    direction: e.target.value as SortDirection,
+                                  }
+                                : item
+                            )
+                          )
+                        }
+                        className="w-32 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 focus:outline-none"
+                      >
+                        <option value="asc">Ascending</option>
+                        <option value="desc">Descending</option>
+                      </select>
+                      <button
+                        onClick={() =>
+                          updateBoardSorts((prev) => prev.filter((item) => item.id !== rule.id))
+                        }
+                        className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        title="Delete sort"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 border-t border-gray-100 pt-2">
+                  <button
+                    onClick={() =>
+                      updateBoardSorts((prev) => [
+                        ...prev,
+                        {
+                          id: `sort-${Date.now()}`,
+                          field: "updatedAt",
+                          direction: "desc",
+                        },
+                      ])
+                    }
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add sort
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateBoardSorts([])
+                    }
+                    className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete sort
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex h-10 items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              onClick={() => setPortalType("SUPPORT")}
+              className={`h-8 rounded-lg px-4 text-sm font-semibold ${
+                portalType === "SUPPORT"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Soporte
+            </button>
+            <button
+              onClick={() => setPortalType("PROJECT")}
+              className={`h-8 rounded-lg px-4 text-sm font-semibold ${
+                portalType === "PROJECT"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Proyecto
+            </button>
+          </div>
+
+          <div className="ml-auto flex h-10 items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              onClick={() => updateBoardView("table")}
+              className={`flex h-8 items-center gap-2 rounded-lg px-4 text-sm font-semibold ${
+                view === "table"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <List className="h-3.5 w-3.5" />
+              Tabla
+            </button>
+            <button
+              onClick={() => updateBoardView("kanban")}
+              className={`flex h-8 items-center gap-2 rounded-lg px-4 text-sm font-semibold ${
+                view === "kanban"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Kanban
+            </button>
+          </div>
+          {!selectedBoard ? (
+            <div className="flex h-10 items-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-500">
+              Crea o selecciona un board para continuar
+            </div>
+          ) : selectedBoard.type !== "PROJECT" ? (
+            <button
+              onClick={() => setShowNewTicket(true)}
+              className="flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" />
+              Crear ticket
+            </button>
+          ) : (
+            <div className="flex h-10 items-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-500">
+              Vista proyecto: solo lectura para nuevos tickets
+            </div>
+          )}
+        </div>
+
         {loadingTickets ? (
           <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white/70 py-24">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
           </div>
         ) : view === "table" ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-end">
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
-                <button
-                  onClick={() => setView("table")}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
-                    view === "table"
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <List className="h-3.5 w-3.5" />
-                  Tabla
-                </button>
-                <button
-                  onClick={() => setView("kanban")}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
-                    view === "kanban"
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  Kanban
-                </button>
-              </div>
-            </div>
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
               <table className="min-w-[980px] w-full table-fixed text-left text-sm">
@@ -665,9 +1034,9 @@ export default function PortalView() {
                   <tr>
                     {[
                       { key: "title", label: "Title" },
-                    { key: "description", label: "Description" },
                     { key: "owner", label: "Owner" },
                     { key: "state", label: "State" },
+                    { key: "createdAt", label: "Created" },
                     { key: "dueDate", label: "Due date" },
                     ].map((col) => (
                       <th
@@ -675,28 +1044,9 @@ export default function PortalView() {
                         className="relative px-5 py-3 font-medium select-none"
                         style={{ width: columnWidths[col.key] || undefined }}
                       >
-                        <button
-                          onClick={() => onSort(col.key)}
-                          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500"
-                        >
+                        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                           {col.label}
-                          <span className="inline-flex items-center gap-0.5">
-                            <ArrowUp
-                              className={`h-3 w-3 ${
-                                sort.key === col.key && sort.dir === "asc"
-                                  ? "text-gray-900"
-                                  : "text-gray-300"
-                              }`}
-                            />
-                            <ArrowDown
-                              className={`h-3 w-3 ${
-                                sort.key === col.key && sort.dir === "desc"
-                                  ? "text-gray-900"
-                                  : "text-gray-300"
-                              }`}
-                            />
-                          </span>
-                        </button>
+                        </span>
                         <span
                           onMouseDown={(e) => {
                             e.preventDefault();
@@ -723,12 +1073,6 @@ export default function PortalView() {
                           {ticket.identifier}
                         </div>
                         <div className="font-semibold text-gray-900">{ticket.title}</div>
-                      </td>
-                      <td
-                        className="px-5 py-4 text-gray-600"
-                        style={{ width: columnWidths.description }}
-                      >
-                        <div className="line-clamp-2">{ticket.description || "—"}</div>
                       </td>
                       <td className="px-5 py-4 text-gray-600" style={{ width: columnWidths.owner }}>
                         <div className="flex flex-col gap-1">
@@ -757,6 +1101,11 @@ export default function PortalView() {
                           {ticket.state}
                         </span>
                       </td>
+                      <td className="px-5 py-4 text-gray-600" style={{ width: columnWidths.createdAt }}>
+                        {ticket.createdAt
+                          ? new Date(ticket.createdAt).toLocaleDateString()
+                          : "—"}
+                      </td>
                       <td className="px-5 py-4 text-gray-600" style={{ width: columnWidths.dueDate }}>
                         {ticket.dueDate
                           ? new Date(ticket.dueDate).toLocaleDateString()
@@ -778,34 +1127,8 @@ export default function PortalView() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-end">
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
-                <button
-                  onClick={() => setView("table")}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
-                    view === "table"
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <List className="h-3.5 w-3.5" />
-                  Tabla
-                </button>
-                <button
-                  onClick={() => setView("kanban")}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold ${
-                    view === "kanban"
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  Kanban
-                </button>
-              </div>
-            </div>
             <div className="flex gap-4 overflow-x-auto pb-4">
-            {states.map((state) => (
+            {orderedStates.map((state) => (
               <div
                 key={state.id}
                 className="min-w-[260px] flex-1 rounded-2xl border border-gray-200 bg-white/70 p-4 shadow-sm"
@@ -870,84 +1193,9 @@ export default function PortalView() {
         )}
       </main>
 
-      {showBoardSettings && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-16 animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-slide-up">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Board settings</h2>
-              <button
-                onClick={() => setShowBoardSettings(false)}
-                className="rounded-md p-2 text-gray-500 hover:bg-gray-100"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="mt-2 text-sm text-gray-500">
-              Create a new board by connecting it to a Linear team and project.
-            </p>
-
-            <div className="mt-6 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-500">Board name</label>
-                <input
-                  value={boardForm.name}
-                  onChange={(e) => setBoardForm({ ...boardForm, name: e.target.value })}
-                  placeholder="Vela Gas Support"
-                  className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500">Team</label>
-                <select
-                  value={boardForm.teamId}
-                  onChange={(e) =>
-                    setBoardForm({ ...boardForm, teamId: e.target.value, projectId: "" })
-                  }
-                  className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none"
-                >
-                  {teamOptions.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500">Project</label>
-                <select
-                  value={boardForm.projectId}
-                  onChange={(e) => setBoardForm({ ...boardForm, projectId: e.target.value })}
-                  className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none"
-                >
-                  <option value="">No project (team-wide)</option>
-                  {projectOptions.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {boardError && (
-                <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
-                  {boardError}
-                </div>
-              )}
-              <button
-                onClick={handleCreateBoard}
-                disabled={savingBoard}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-              >
-                {savingBoard ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Create board
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showNewTicket && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-16 animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-slide-up">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 px-4 py-8 animate-fade-in sm:py-16">
+          <div className="w-[min(92vw,42rem)] shrink-0 rounded-2xl bg-white p-6 shadow-xl animate-slide-up">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Nuevo Ticket</h2>
               <button
@@ -1019,7 +1267,7 @@ export default function PortalView() {
 
       {detailsOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30 animate-fade-in">
-          <div className="flex h-full w-full max-w-xl flex-col bg-white shadow-xl animate-slide-in">
+          <div className="flex h-full w-[min(96vw,48rem)] min-w-[22rem] shrink-0 flex-col bg-white shadow-xl animate-slide-in">
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div>
                 <div className="text-xs font-semibold text-gray-400">

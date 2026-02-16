@@ -24,8 +24,9 @@ export default function NewTicketForm() {
     async function init() {
       const boardsRes = await getBoards();
       if (boardsRes.success) {
-        setBoards(boardsRes.data);
-        if (boardsRes.data.length > 0) setBoardId(boardsRes.data[0].id);
+        const supportBoards = boardsRes.data.filter((board: any) => board.type !== "PROJECT");
+        setBoards(supportBoards);
+        if (supportBoards.length > 0) setBoardId(supportBoards[0].id);
       }
       setLoading(false);
     }

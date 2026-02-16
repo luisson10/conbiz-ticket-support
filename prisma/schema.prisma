@@ -19,11 +19,29 @@ model User {
   updatedAt        DateTime @updatedAt
 }
 
+model Account {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  boards    Board[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum BoardType {
+  SUPPORT
+  PROJECT
+}
+
 model Board {
   id        String   @id @default(cuid())
   name      String
+  type      BoardType @default(SUPPORT)
+  accountId String
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   teamId    String
   projectId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([accountId, type])
 }
