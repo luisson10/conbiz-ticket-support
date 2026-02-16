@@ -1,12 +1,19 @@
+import crypto from "crypto";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import crypto from "crypto";
+
+type LinearWebhookPayload = {
+  action?: string;
+  type?: string;
+  webhookTimestamp?: number;
+  data?: unknown;
+};
 
 export async function POST(req: Request) {
   const body = await req.text();
   const headersList = await headers();
   const signatureHeader = headersList.get("linear-signature");
-  
+
   const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
@@ -38,28 +45,28 @@ export async function POST(req: Request) {
   }
 
   try {
-    const payload = JSON.parse(body);
-    const webhookTimestamp = payload?.webhookTimestamp;
+    const payload = JSON.parse(body) as LinearWebhookPayload;
+    const webhookTimestamp = payload.webhookTimestamp;
     const now = Date.now();
+
     if (
       !Number.isFinite(webhookTimestamp) ||
-      Math.abs(now - webhookTimestamp) > 60 * 1000
+      Math.abs(now - Number(webhookTimestamp)) > 60 * 1000
     ) {
       console.error("Stale or invalid webhook timestamp");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { action, type, data } = payload;
 
-    console.log(`Received Linear Webhook: ${type} - ${action}`);
-    
-    // TODO: Handle specific events here
-    // Example: Update local database when an issue is updated
-    if (type === "Issue" && action === "update") {
-      // syncIssue(data);
+    const { action, type, data } = payload;
+    console.log(`Received Linear Webhook: ${type ?? "unknown"} - ${action ?? "unknown"}`);
+
+    // TODO: Persist delta events for portal activity feed.
+    if (data) {
+      void data;
     }
 
     return NextResponse.json({ received: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error processing webhook:", error);
     return NextResponse.json({ error: "Processing error" }, { status: 400 });
   }

@@ -1,10 +1,10 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import prisma from "@/lib/prisma";
 import { requireAdmin, requireAuth } from "@/lib/auth";
-
-type BoardTypeInput = "SUPPORT" | "PROJECT";
+import { actionError, type ActionResult } from "@/lib/contracts/action-result";
+import type { BoardDto } from "@/lib/contracts/portal";
+import { BoardType } from "@prisma/client";
 
 type AccountRecord = {
   id: string;
@@ -13,171 +13,145 @@ type AccountRecord = {
   updatedAt: Date;
 };
 
-function normalizeAccountName(value: string) {
+type CreateBoardInput = {
+  name: string;
+  teamId: string;
+  projectId?: string | null;
+  type: "SUPPORT" | "PROJECT";
+  accountId?: string | null;
+  accountName?: string | null;
+};
+
+type UpdateBoardInput = {
+  id: string;
+  name: string;
+  teamId: string;
+  projectId?: string | null;
+};
+
+function normalizeAccountName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-async function listAccountsSafe() {
-  const accountDelegate = (prisma as any).account;
-  if (accountDelegate?.findMany) {
-    return accountDelegate.findMany({
-      orderBy: { name: "asc" },
-    }) as Promise<AccountRecord[]>;
-  }
-
-  const rows = await prisma.$queryRaw<Array<{ id: string; name: string; createdAt: string; updatedAt: string }>>`
-    SELECT id, name, createdAt, updatedAt
-    FROM "Account"
-    ORDER BY name ASC
-  `;
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    createdAt: new Date(row.createdAt),
-    updatedAt: new Date(row.updatedAt),
-  }));
-}
-
-async function createAccountSafe(name: string) {
-  const accountDelegate = (prisma as any).account;
-  if (accountDelegate?.create) {
-    return accountDelegate.create({
-      data: { name },
-    }) as Promise<AccountRecord>;
-  }
-
-  const id = randomUUID();
-  const now = new Date().toISOString();
-  await prisma.$executeRaw`
-    INSERT INTO "Account" (id, name, createdAt, updatedAt)
-    VALUES (${id}, ${name}, ${now}, ${now})
-  `;
-
+function toBoardDto(board: {
+  id: string;
+  name: string;
+  type: BoardType;
+  accountId: string;
+  account: { id: string; name: string };
+  teamId: string;
+  projectId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): BoardDto {
   return {
-    id,
-    name,
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
+    id: board.id,
+    name: board.name,
+    type: board.type,
+    accountId: board.accountId,
+    account: board.account,
+    teamId: board.teamId,
+    projectId: board.projectId,
+    createdAt: board.createdAt,
+    updatedAt: board.updatedAt,
   };
 }
 
-async function updateAccountSafe(id: string, name: string) {
-  const accountDelegate = (prisma as any).account;
-  if (accountDelegate?.update) {
-    return accountDelegate.update({
-      where: { id },
-      data: { name },
-    }) as Promise<AccountRecord>;
-  }
-
-  const now = new Date().toISOString();
-  await prisma.$executeRaw`
-    UPDATE "Account"
-    SET name = ${name}, updatedAt = ${now}
-    WHERE id = ${id}
-  `;
-
-  const rows = await prisma.$queryRaw<Array<{ id: string; name: string; createdAt: string; updatedAt: string }>>`
-    SELECT id, name, createdAt, updatedAt
-    FROM "Account"
-    WHERE id = ${id}
-    LIMIT 1
-  `;
-  const row = rows[0];
-  if (!row) {
-    throw new Error("Account not found.");
-  }
-  return {
-    id: row.id,
-    name: row.name,
-    createdAt: new Date(row.createdAt),
-    updatedAt: new Date(row.updatedAt),
-  };
-}
-
-export async function getBoards() {
+export async function getBoards(): Promise<ActionResult<BoardDto[]>> {
   try {
-    requireAuth();
+    await requireAuth();
     const boards = await prisma.board.findMany({
       include: {
         account: true,
       },
       orderBy: { createdAt: "desc" },
     });
-    return { success: true, data: boards };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: true, data: boards.map(toBoardDto) };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load boards.");
   }
 }
 
-export async function getAccounts() {
+export async function getAccounts(): Promise<ActionResult<AccountRecord[]>> {
   try {
-    requireAuth();
-    const accounts = await listAccountsSafe();
+    await requireAuth();
+    const accounts = await prisma.account.findMany({
+      orderBy: { name: "asc" },
+    });
     return { success: true, data: accounts };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load accounts.");
   }
 }
 
-export async function createAccount(data: { name: string }) {
+export async function createAccount(data: {
+  name: string;
+}): Promise<ActionResult<AccountRecord>> {
   try {
-    requireAdmin();
+    await requireAdmin();
     const name = normalizeAccountName(data.name || "");
     if (!name) {
       return { success: false, error: "Account name is required." };
     }
 
-    const existingAccounts = await listAccountsSafe();
-    const existing = existingAccounts.find(
+    const existing = await prisma.account.findMany({
+      select: { id: true, name: true, createdAt: true, updatedAt: true },
+    });
+    const duplicateName = existing.find(
       (account) => account.name.trim().toLowerCase() === name.toLowerCase()
     );
-    if (existing) {
+
+    if (duplicateName) {
       return { success: false, error: "Ya existe una organizacion con ese nombre." };
     }
 
-    const account = await createAccountSafe(name);
+    const account = await prisma.account.create({
+      data: { name },
+    });
+
     return { success: true, data: account };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to create account.");
   }
 }
 
-export async function updateAccount(data: { id: string; name: string }) {
+export async function updateAccount(data: {
+  id: string;
+  name: string;
+}): Promise<ActionResult<AccountRecord>> {
   try {
-    requireAdmin();
+    await requireAdmin();
     const name = normalizeAccountName(data.name || "");
     if (!data.id || !name) {
       return { success: false, error: "Account id and name are required." };
     }
 
-    const existingAccounts = await listAccountsSafe();
-    const duplicate = existingAccounts.find(
+    const existing = await prisma.account.findMany({
+      select: { id: true, name: true },
+    });
+    const duplicate = existing.find(
       (account) =>
-        account.id !== data.id &&
-        account.name.trim().toLowerCase() === name.toLowerCase()
+        account.id !== data.id && account.name.trim().toLowerCase() === name.toLowerCase()
     );
+
     if (duplicate) {
       return { success: false, error: "Ya existe una organizacion con ese nombre." };
     }
 
-    const account = await updateAccountSafe(data.id, name);
+    const account = await prisma.account.update({
+      where: { id: data.id },
+      data: { name },
+    });
+
     return { success: true, data: account };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to update account.");
   }
 }
 
-export async function createBoard(data: {
-  name: string;
-  teamId: string;
-  projectId?: string | null;
-  type: BoardTypeInput;
-  accountId?: string | null;
-  accountName?: string | null;
-}) {
+export async function createBoard(data: CreateBoardInput): Promise<ActionResult<BoardDto>> {
   try {
-    requireAdmin();
+    await requireAdmin();
 
     const name = data.name?.trim();
     const accountName = data.accountName?.trim();
@@ -196,20 +170,41 @@ export async function createBoard(data: {
 
     if (!accountId && accountName) {
       const normalizedName = normalizeAccountName(accountName);
-      const existingAccounts = await listAccountsSafe();
-      const existing = existingAccounts.find(
+      const accounts = await prisma.account.findMany({
+        select: { id: true, name: true },
+      });
+      const existing = accounts.find(
         (account) => account.name.trim().toLowerCase() === normalizedName.toLowerCase()
       );
       if (existing) {
         accountId = existing.id;
       } else {
-        const created = await createAccountSafe(normalizedName);
+        const created = await prisma.account.create({
+          data: { name: normalizedName },
+        });
         accountId = created.id;
       }
     }
 
     if (!accountId) {
       return { success: false, error: "Account is required." };
+    }
+
+    const existingBoardType = await prisma.board.findFirst({
+      where: {
+        accountId,
+        type: data.type,
+      },
+    });
+
+    if (existingBoardType) {
+      return {
+        success: false,
+        error:
+          data.type === "SUPPORT"
+            ? "Esta organizacion ya tiene un board de soporte."
+            : "Esta organizacion ya tiene un board de proyecto.",
+      };
     }
 
     const board = await prisma.board.create({
@@ -225,20 +220,15 @@ export async function createBoard(data: {
       },
     });
 
-    return { success: true, data: board };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: true, data: toBoardDto(board) };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to create board.");
   }
 }
 
-export async function updateBoard(data: {
-  id: string;
-  name: string;
-  teamId: string;
-  projectId?: string | null;
-}) {
+export async function updateBoard(data: UpdateBoardInput): Promise<ActionResult<BoardDto>> {
   try {
-    requireAdmin();
+    await requireAdmin();
     const name = data.name?.trim();
     if (!data.id || !name || !data.teamId) {
       return { success: false, error: "Board id, name and team are required." };
@@ -256,8 +246,8 @@ export async function updateBoard(data: {
       },
     });
 
-    return { success: true, data: board };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: true, data: toBoardDto(board) };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to update board.");
   }
 }

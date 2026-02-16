@@ -3,6 +3,14 @@
 import { linearClient } from "@/lib/linear";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { actionError, type ActionResult } from "@/lib/contracts/action-result";
+import type {
+  ActivityItemDto,
+  BoardDto,
+  IssueDetailsDto,
+  TicketDto,
+  WorkflowStateDto,
+} from "@/lib/contracts/portal";
 
 type WorkflowStateSnapshot = {
   id: string;
@@ -35,14 +43,44 @@ type IssueSnapshot = {
   } | null;
 };
 
+type IssuePage = {
+  nodes: IssueSnapshot[];
+  pageInfo: {
+    hasNextPage: boolean;
+    endCursor: string | null;
+  };
+};
+
+type ActivityIssueSnapshot = {
+  id: string;
+  identifier: string;
+  title: string;
+  updatedAt?: string | null;
+  comments: {
+    nodes: Array<{
+      id: string;
+      body?: string | null;
+      createdAt: string;
+    }>;
+  };
+};
+
+type ActivityIssuePage = {
+  nodes: ActivityIssueSnapshot[];
+  pageInfo: {
+    hasNextPage: boolean;
+    endCursor: string | null;
+  };
+};
+
 const workflowStateCache = new Map<
   string,
   { expiresAt: number; states: WorkflowStateSnapshot[] }
 >();
 
 const BOARD_ISSUES_QUERY = `
-  query BoardIssues($teamId: ID!, $first: Int!) {
-    issues(first: $first, filter: { team: { id: { eq: $teamId } } }) {
+  query BoardIssues($teamId: ID!, $first: Int!, $after: String) {
+    issues(first: $first, after: $after, filter: { team: { id: { eq: $teamId } } }) {
       nodes {
         id
         identifier
@@ -57,14 +95,19 @@ const BOARD_ISSUES_QUERY = `
         assignee { name }
         project { name }
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
 
 const PROJECT_BOARD_ISSUES_QUERY = `
-  query ProjectBoardIssues($teamId: ID!, $projectId: ID!, $first: Int!) {
+  query ProjectBoardIssues($teamId: ID!, $projectId: ID!, $first: Int!, $after: String) {
     issues(
       first: $first
+      after: $after
       filter: {
         team: { id: { eq: $teamId } }
         project: { id: { eq: $projectId } }
@@ -84,11 +127,94 @@ const PROJECT_BOARD_ISSUES_QUERY = `
         assignee { name }
         project { name }
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;
 
-async function getWorkflowStatesCached(teamId: string) {
+const BOARD_ACTIVITY_QUERY = `
+  query BoardActivity($teamId: ID!, $first: Int!, $after: String) {
+    issues(first: $first, after: $after, filter: { team: { id: { eq: $teamId } } }) {
+      nodes {
+        id
+        identifier
+        title
+        updatedAt
+        comments(first: 15) {
+          nodes {
+            id
+            body
+            createdAt
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const PROJECT_BOARD_ACTIVITY_QUERY = `
+  query ProjectBoardActivity($teamId: ID!, $projectId: ID!, $first: Int!, $after: String) {
+    issues(
+      first: $first
+      after: $after
+      filter: {
+        team: { id: { eq: $teamId } }
+        project: { id: { eq: $projectId } }
+      }
+    ) {
+      nodes {
+        id
+        identifier
+        title
+        updatedAt
+        comments(first: 15) {
+          nodes {
+            id
+            body
+            createdAt
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+function toBoardDto(board: {
+  id: string;
+  name: string;
+  type: "SUPPORT" | "PROJECT";
+  accountId: string;
+  account: { id: string; name: string };
+  teamId: string;
+  projectId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): BoardDto {
+  return {
+    id: board.id,
+    name: board.name,
+    type: board.type,
+    accountId: board.accountId,
+    account: board.account,
+    teamId: board.teamId,
+    projectId: board.projectId,
+    createdAt: board.createdAt,
+    updatedAt: board.updatedAt,
+  };
+}
+
+async function getWorkflowStatesCached(teamId: string): Promise<WorkflowStateDto[]> {
   const now = Date.now();
   const cached = workflowStateCache.get(teamId);
   if (cached && cached.expiresAt > now) {
@@ -99,93 +225,86 @@ async function getWorkflowStatesCached(teamId: string) {
     filter: { team: { id: { eq: teamId } } },
   });
 
-  const mapped = states.nodes.map((s) => ({
-    id: s.id,
-    name: s.name,
-    type: s.type,
-    color: s.color,
+  const mapped: WorkflowStateDto[] = states.nodes.map((state) => ({
+    id: state.id,
+    name: state.name,
+    type: state.type,
+    color: state.color,
   }));
+
   workflowStateCache.set(teamId, {
     expiresAt: now + 60_000,
     states: mapped,
   });
+
   return mapped;
 }
 
-async function getIssueSnapshots(board: { teamId: string; projectId?: string | null }) {
-  try {
-    const query = board.projectId ? PROJECT_BOARD_ISSUES_QUERY : BOARD_ISSUES_QUERY;
-    const variables = board.projectId
-      ? { teamId: board.teamId, projectId: board.projectId, first: 100 }
-      : { teamId: board.teamId, first: 100 };
+async function getIssueSnapshotsPage(
+  board: { teamId: string; projectId?: string | null },
+  options: { first: number; after?: string | null }
+): Promise<IssuePage> {
+  const query = board.projectId ? PROJECT_BOARD_ISSUES_QUERY : BOARD_ISSUES_QUERY;
+  const variables = board.projectId
+    ? {
+        teamId: board.teamId,
+        projectId: board.projectId,
+        first: options.first,
+        after: options.after ?? null,
+      }
+    : {
+        teamId: board.teamId,
+        first: options.first,
+        after: options.after ?? null,
+      };
 
-    const raw = await linearClient.client.rawRequest<{ issues?: { nodes?: IssueSnapshot[] } }>(
-      query,
-      variables
-    );
+  const raw = (await linearClient.client.rawRequest(query, variables)) as {
+    data?: { issues?: IssuePage };
+  };
 
-    return raw.data?.issues?.nodes || [];
-  } catch {
-    // Fallback to SDK connection API if raw query shape changes.
-    const filter: any = {
-      team: { id: { eq: board.teamId } },
-    };
-    if (board.projectId) {
-      filter.project = { id: { eq: board.projectId } };
+  return (
+    raw.data?.issues ?? {
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        endCursor: null,
+      },
     }
-
-    const issues = await linearClient.issues({ filter, first: 100 });
-    return Promise.all(
-      issues.nodes.map(async (issue) => {
-        const [state, assignee, project] = await Promise.all([
-          issue.state,
-          issue.assignee,
-          issue.project,
-        ]);
-        return {
-          id: issue.id,
-          identifier: issue.identifier,
-          title: issue.title,
-          description: issue.description,
-          dueDate: issue.dueDate,
-          url: issue.url,
-          priority: issue.priority,
-          updatedAt: issue.updatedAt,
-          createdAt: issue.createdAt,
-          state: state
-            ? {
-                id: state.id,
-                name: state.name,
-                type: state.type,
-                color: state.color,
-              }
-            : null,
-          assignee: assignee ? { name: assignee.name } : null,
-          project: project ? { name: project.name } : null,
-        } satisfies IssueSnapshot;
-      })
-    );
-  }
+  );
 }
 
-export async function getBoardTickets(boardId: string) {
+export async function getBoardTickets(
+  boardId: string,
+  options?: { first?: number; after?: string | null }
+): Promise<
+  ActionResult<{
+    board: BoardDto;
+    tickets: TicketDto[];
+    states: WorkflowStateDto[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  }>
+> {
   try {
-    requireAuth();
+    await requireAuth();
 
     const board = await prisma.board.findUnique({
       where: { id: boardId },
+      include: { account: true },
     });
 
     if (!board) {
       return { success: false, error: "Board not found." };
     }
 
-    const [issueSnapshots, states] = await Promise.all([
-      getIssueSnapshots(board),
-      getWorkflowStatesCached(board.teamId),
-    ]);
+    const first = Math.min(Math.max(options?.first ?? 100, 1), 250);
+    const page = await getIssueSnapshotsPage(board, {
+      first,
+      after: options?.after ?? null,
+    });
 
-    const tickets = issueSnapshots.map((issue) => ({
+    const states = await getWorkflowStatesCached(board.teamId);
+
+    const tickets: TicketDto[] = page.nodes.map((issue) => ({
       id: issue.id,
       identifier: issue.identifier,
       title: issue.title,
@@ -206,99 +325,148 @@ export async function getBoardTickets(boardId: string) {
     return {
       success: true,
       data: {
-        board,
+        board: toBoardDto(board),
         tickets,
         states,
+        pageInfo: page.pageInfo,
       },
     };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load tickets.");
   }
 }
 
-export async function getRecentActivity(boardId: string) {
+async function getActivityPage(
+  board: { teamId: string; projectId?: string | null },
+  options: { first: number; after?: string | null }
+): Promise<ActivityIssuePage> {
+  const query = board.projectId ? PROJECT_BOARD_ACTIVITY_QUERY : BOARD_ACTIVITY_QUERY;
+  const variables = board.projectId
+    ? {
+        teamId: board.teamId,
+        projectId: board.projectId,
+        first: options.first,
+        after: options.after ?? null,
+      }
+    : {
+        teamId: board.teamId,
+        first: options.first,
+        after: options.after ?? null,
+      };
+
+  const raw = (await linearClient.client.rawRequest(query, variables)) as {
+    data?: { issues?: ActivityIssuePage };
+  };
+  return (
+    raw.data?.issues ?? {
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        endCursor: null,
+      },
+    }
+  );
+}
+
+export async function getRecentActivity(
+  boardId: string,
+  options?: { limit?: number; since?: string | null; after?: string | null }
+): Promise<ActionResult<ActivityItemDto[]>> {
   try {
-    requireAuth();
+    await requireAuth();
 
     const board = await prisma.board.findUnique({
       where: { id: boardId },
+      include: { account: true },
     });
 
     if (!board) {
       return { success: false, error: "Board not found." };
     }
 
-    const filter: any = {
-      team: { id: { eq: board.teamId } },
-    };
+    const limit = Math.min(Math.max(options?.limit ?? 20, 1), 100);
+    const page = await getActivityPage(board, {
+      first: Math.max(limit, 30),
+      after: options?.after ?? null,
+    });
 
-    if (board.projectId) {
-      filter.project = { id: { eq: board.projectId } };
-    }
+    const sinceDate = options?.since ? new Date(options.since) : null;
 
-    const issues = await linearClient.issues({ filter, first: 50 });
+    const activity: ActivityItemDto[] = [];
 
-    const activity: Array<{
-      id: string;
-      type: "comment" | "update";
-      issueId: string;
-      issueTitle: string;
-      issueIdentifier: string;
-      createdAt: string;
-      body?: string;
-    }> = [];
-
-    const issueComments = await Promise.all(
-      issues.nodes.map(async (issue) => {
-        const comments = await issue.comments({ first: 20 });
-        return { issue, comments: comments.nodes };
-      })
-    );
-
-    issueComments.forEach(({ issue, comments }) => {
+    page.nodes.forEach((issue) => {
       if (issue.updatedAt) {
-        activity.push({
-          id: `${issue.id}-update`,
-          type: "update",
-          issueId: issue.id,
-          issueTitle: issue.title,
-          issueIdentifier: issue.identifier,
-          createdAt: issue.updatedAt,
-        });
+        const updatedAtDate = new Date(issue.updatedAt);
+        if (!sinceDate || updatedAtDate > sinceDate) {
+          activity.push({
+            id: `${issue.id}-update-${issue.updatedAt}`,
+            type: "update",
+            issueId: issue.id,
+            issueTitle: issue.title,
+            issueIdentifier: issue.identifier,
+            createdAt: issue.updatedAt,
+          });
+        }
       }
 
-      comments
-        .filter((c) => typeof c.body === "string" && c.body.includes("#sync"))
-        .forEach((c) => {
+      issue.comments.nodes
+        .filter((comment) => typeof comment.body === "string" && comment.body.includes("#sync"))
+        .forEach((comment) => {
+          const commentDate = new Date(comment.createdAt);
+          if (sinceDate && commentDate <= sinceDate) {
+            return;
+          }
+
           activity.push({
-            id: c.id,
+            id: comment.id,
             type: "comment",
             issueId: issue.id,
             issueTitle: issue.title,
             issueIdentifier: issue.identifier,
-            createdAt: c.createdAt,
-            body: c.body.replace(/#sync\s*/gi, "").trim(),
+            createdAt: comment.createdAt,
+            body: comment.body?.replace(/#sync\s*/gi, "").trim() || "",
           });
         });
     });
 
     activity.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
-    return { success: true, data: activity.slice(0, 20) };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: true, data: activity.slice(0, limit) };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load activity.");
   }
 }
 
-export async function getIssueDetails(issueId: string) {
+type IssueAttachment = {
+  id: string;
+  title?: string | null;
+  url: string;
+  createdAt: string;
+};
+
+type IssueWithAttachments = {
+  attachments: () => Promise<{ nodes: IssueAttachment[] }>;
+};
+
+function hasAttachments(issue: unknown): issue is IssueWithAttachments {
+  return Boolean(
+    issue &&
+      typeof issue === "object" &&
+      "attachments" in issue &&
+      typeof (issue as { attachments?: unknown }).attachments === "function"
+  );
+}
+
+export async function getIssueDetails(issueId: string): Promise<ActionResult<IssueDetailsDto>> {
   try {
-    requireAuth();
+    await requireAuth();
 
     const issue = await linearClient.issue(issueId);
     if (!issue) return { success: false, error: "Issue not found." };
 
-    const attachmentsPromise =
-      "attachments" in issue ? (issue as any).attachments() : Promise.resolve(null);
+    const attachmentsPromise = hasAttachments(issue)
+      ? issue.attachments()
+      : Promise.resolve<{ nodes: IssueAttachment[] }>({ nodes: [] });
 
     const [comments, attachments, state, assignee, project] = await Promise.all([
       issue.comments(),
@@ -308,15 +476,19 @@ export async function getIssueDetails(issueId: string) {
       issue.project,
     ]);
 
-    const syncedComments =
-      comments?.nodes
-        ?.filter((c) => typeof c.body === "string" && c.body.includes("#sync"))
-        .map((c) => ({
-          id: c.id,
-          body: c.body.replace(/#sync\s*/gi, "").trim(),
-          createdAt: c.createdAt,
-          userName: c.user?.name || "Unknown",
-        })) || [];
+    const syncedComments = await Promise.all(
+      (comments?.nodes || [])
+        .filter((comment) => typeof comment.body === "string" && comment.body.includes("#sync"))
+        .map(async (comment) => {
+          const user = await comment.user;
+          return {
+            id: comment.id,
+            body: comment.body.replace(/#sync\s*/gi, "").trim(),
+            createdAt: new Date(comment.createdAt).toISOString(),
+            userName: user?.name || "Unknown",
+          };
+        })
+    );
 
     return {
       success: true,
@@ -333,50 +505,54 @@ export async function getIssueDetails(issueId: string) {
         assigneeName: assignee?.name || "Unassigned",
         projectName: project?.name || null,
         comments: syncedComments,
-        attachments: attachments?.nodes?.map((a) => ({
-          id: a.id,
-          title: a.title,
-          url: a.url,
-          createdAt: a.createdAt,
-        })) || [],
+        attachments: attachments.nodes.map((attachment) => ({
+          id: attachment.id,
+          title: attachment.title,
+          url: attachment.url,
+          createdAt: new Date(attachment.createdAt).toISOString(),
+        })),
       },
     };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load issue details.");
   }
 }
 
-export async function createIssueComment(issueId: string, body: string) {
+export async function createIssueComment(
+  issueId: string,
+  body: string
+): Promise<ActionResult<{ id: string; body: string; createdAt: string; userName: string }>> {
   try {
-    requireAuth();
+    await requireAuth();
 
     const trimmed = body.trim();
     if (!trimmed) {
       return { success: false, error: "Comment cannot be empty." };
     }
 
-    const payload = {
+    const response = await linearClient.createComment({
       issueId,
       body: `#sync\n${trimmed}`,
-    };
+    });
 
-    const response = await linearClient.createComment(payload);
     const comment = await response.comment;
 
     if (!comment) {
       return { success: false, error: "Failed to create comment." };
     }
 
+    const user = await comment.user;
+
     return {
       success: true,
       data: {
         id: comment.id,
         body: trimmed,
-        createdAt: comment.createdAt,
-        userName: comment.user?.name || "You",
+        createdAt: new Date(comment.createdAt).toISOString(),
+        userName: user?.name || "You",
       },
     };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to create comment.");
   }
 }

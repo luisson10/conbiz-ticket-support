@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
-    requireAuth();
+    await requireAuth();
     const { searchParams } = new URL(req.url);
     const rawUrl = searchParams.get("url");
     if (!rawUrl) {
@@ -34,7 +34,8 @@ export async function GET(req: Request) {
         "cache-control": "private, max-age=300",
       },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unexpected file proxy error.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

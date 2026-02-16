@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import PortalView from "./portal-view";
 
 export default function PortalPage() {
-  return <PortalView />;
+  return (
+    <Suspense fallback={null}>
+      <PortalView />
+    </Suspense>
+  );
 }

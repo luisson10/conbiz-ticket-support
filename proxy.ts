@@ -2,13 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const AUTH_BYPASS = process.env.CONBIZ_AUTH_BYPASS === "true";
+const CAN_BYPASS = AUTH_BYPASS && process.env.NODE_ENV !== "production";
 
 function normalizeRole(role: string | null | undefined) {
   return role?.toUpperCase() === "ADMIN" ? "ADMIN" : "USER";
 }
 
-export function middleware(request: NextRequest) {
-  if (AUTH_BYPASS) return NextResponse.next();
+export function proxy(request: NextRequest) {
+  if (CAN_BYPASS) return NextResponse.next();
+
+  if (AUTH_BYPASS && process.env.NODE_ENV === "production") {
+    return new NextResponse("Invalid auth configuration", { status: 500 });
+  }
 
   const userId =
     request.headers.get("x-conbiz-user-id") ||
@@ -16,8 +21,7 @@ export function middleware(request: NextRequest) {
     null;
 
   const role = normalizeRole(
-    request.headers.get("x-conbiz-user-role") ||
-      request.cookies.get("conbiz_user_role")?.value
+    request.headers.get("x-conbiz-user-role") || request.cookies.get("conbiz_user_role")?.value
   );
 
   if (!userId || role !== "ADMIN") {

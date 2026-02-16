@@ -44,4 +44,5 @@ model Board {
   updatedAt DateTime @updatedAt
 
   @@index([accountId, type])
+  @@unique([accountId, type])
 }

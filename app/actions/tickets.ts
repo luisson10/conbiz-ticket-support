@@ -3,16 +3,23 @@
 import { linearClient } from "@/lib/linear";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 
-export async function createTicket(data: {
+type CreateTicketInput = {
   boardId: string;
   title: string;
   description: string;
   priority?: number;
   dueDate?: string;
-}) {
+};
+
+type CreateTicketResult = { issueId: string };
+
+export async function createTicket(
+  data: CreateTicketInput
+): Promise<ActionResult<CreateTicketResult>> {
   try {
-    requireAuth();
+    await requireAuth();
 
     const board = await prisma.board.findUnique({
       where: { id: data.boardId },
@@ -29,7 +36,14 @@ export async function createTicket(data: {
       };
     }
 
-    const issuePayload: any = {
+    const issuePayload: {
+      teamId: string;
+      title: string;
+      description: string;
+      priority?: number;
+      dueDate?: string;
+      projectId?: string;
+    } = {
       teamId: board.teamId,
       title: data.title,
       description: data.description,
@@ -43,15 +57,13 @@ export async function createTicket(data: {
 
     const issueResponse = await linearClient.createIssue(issuePayload);
     const issue = await issueResponse.issue;
-    
+
     if (!issue) {
-       return { success: false, error: "Failed to create issue in Linear." };
+      return { success: false, error: "Failed to create issue in Linear." };
     }
 
     return { success: true, data: { issueId: issue.id } };
-
-  } catch (error: any) {
-    console.error("Create Ticket Error:", error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to create ticket.");
   }
 }

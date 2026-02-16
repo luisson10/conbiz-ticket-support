@@ -7,14 +7,15 @@ export type AuthContext = {
 };
 
 const AUTH_BYPASS = process.env.CONBIZ_AUTH_BYPASS === "true";
+const CAN_BYPASS = AUTH_BYPASS && process.env.NODE_ENV !== "production";
 
 function normalizeRole(role: string | null | undefined): "ADMIN" | "USER" {
   return role?.toUpperCase() === "ADMIN" ? "ADMIN" : "USER";
 }
 
-function readAuth(): AuthContext | null {
-  const headerList = headers();
-  const cookieStore = cookies();
+async function readAuth(): Promise<AuthContext | null> {
+  const headerList = await headers();
+  const cookieStore = await cookies();
 
   const userId =
     headerList.get("x-conbiz-user-id") ||
@@ -24,8 +25,7 @@ function readAuth(): AuthContext | null {
   if (!userId) return null;
 
   const role = normalizeRole(
-    headerList.get("x-conbiz-user-role") ||
-      cookieStore.get("conbiz_user_role")?.value
+    headerList.get("x-conbiz-user-role") || cookieStore.get("conbiz_user_role")?.value
   );
 
   const email =
@@ -36,20 +36,28 @@ function readAuth(): AuthContext | null {
   return { userId, role, email };
 }
 
-export function requireAuth(): AuthContext {
-  if (AUTH_BYPASS) {
+export function isAuthBypassEnabled(): boolean {
+  return CAN_BYPASS;
+}
+
+export async function requireAuth(): Promise<AuthContext> {
+  if (CAN_BYPASS) {
     return { userId: "dev-user", role: "ADMIN" };
   }
 
-  const ctx = readAuth();
+  if (AUTH_BYPASS && process.env.NODE_ENV === "production") {
+    throw new Error("CONBIZ_AUTH_BYPASS cannot be enabled in production.");
+  }
+
+  const ctx = await readAuth();
   if (!ctx) {
     throw new Error("Unauthorized");
   }
   return ctx;
 }
 
-export function requireAdmin(): AuthContext {
-  const ctx = requireAuth();
+export async function requireAdmin(): Promise<AuthContext> {
+  const ctx = await requireAuth();
   if (ctx.role !== "ADMIN") {
     throw new Error("Forbidden");
   }

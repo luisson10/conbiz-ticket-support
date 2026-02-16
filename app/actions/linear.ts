@@ -2,126 +2,181 @@
 
 import { linearClient } from "@/lib/linear";
 import { requireAdmin, requireAuth } from "@/lib/auth";
+import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 
-// ... existing code ...
+type TeamDto = { id: string; name: string; key: string };
+type ProjectDto = { id: string; name: string; state: string };
+type LabelDto = { id: string; name: string; color: string | null };
+type WorkflowStateDto = { id: string; name: string; type: string; color: string };
+type ViewerDto = { name: string; email: string };
+type CustomerDto = { id: string; name: string; email: string };
 
-export async function checkConnection() {
+export async function checkConnection(): Promise<ActionResult<ViewerDto>> {
   try {
-    requireAdmin();
+    await requireAdmin();
     const viewer = await linearClient.viewer;
-    return { success: true, data: { name: viewer.name, email: viewer.email } };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return {
+      success: true,
+      data: { name: viewer.name ?? "Unknown", email: viewer.email ?? "" },
+    };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to verify Linear connection.");
   }
 }
 
-export async function getTeams() {
+export async function getTeams(): Promise<ActionResult<TeamDto[]>> {
   try {
-    requireAuth();
+    await requireAuth();
     const teams = await linearClient.teams();
     return {
       success: true,
-      data: teams.nodes.map((t) => ({ id: t.id, name: t.name, key: t.key })),
-    };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-export async function getProjects(teamId?: string) {
-  try {
-    requireAuth();
-    let projects;
-    
-    if (teamId) {
-      // Fetch projects specifically for this team using the team relation
-      // This is often more reliable than filtering the global list
-      const team = await linearClient.team(teamId);
-      projects = await team.projects();
-    } else {
-      projects = await linearClient.projects();
-    }
-    
-    return {
-      success: true,
-      data: projects.nodes.map((p) => ({
-        id: p.id,
-        name: p.name,
-        state: p.state,
+      data: teams.nodes.map((team) => ({
+        id: team.id,
+        name: team.name,
+        key: team.key,
       })),
     };
-  } catch (error: any) {
-    console.error("Error fetching projects:", error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load teams.");
   }
 }
 
-export async function getLabels(teamId?: string) {
+export async function getProjects(teamId?: string): Promise<ActionResult<ProjectDto[]>> {
   try {
-    requireAuth();
+    await requireAuth();
+
+    const projects = teamId
+      ? await (await linearClient.team(teamId)).projects()
+      : await linearClient.projects();
+
+    return {
+      success: true,
+      data: projects.nodes.map((project) => ({
+        id: project.id,
+        name: project.name,
+        state: project.state,
+      })),
+    };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load projects.");
+  }
+}
+
+export async function getLabels(teamId?: string): Promise<ActionResult<LabelDto[]>> {
+  try {
+    await requireAuth();
     const filter = teamId ? { team: { id: { eq: teamId } } } : undefined;
     const labels = await linearClient.issueLabels({ filter });
     return {
       success: true,
-      data: labels.nodes.map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      data: labels.nodes.map((label) => ({
+        id: label.id,
+        name: label.name,
+        color: label.color,
+      })),
     };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load labels.");
   }
 }
 
-export async function getWorkflowStates(teamId?: string) {
-    try {
-        requireAuth();
-        const states = await linearClient.workflowStates({
-             filter: teamId ? { team: { id: { eq: teamId } } } : undefined
-        });
-        return {
-            success: true,
-            data: states.nodes.map(s => ({ id: s.id, name: s.name, type: s.type, color: s.color }))
-        }
-    } catch (error: any) {
-        return { success: false, error: error.message };
-    }
+export async function getWorkflowStates(teamId?: string): Promise<ActionResult<WorkflowStateDto[]>> {
+  try {
+    await requireAuth();
+    const states = await linearClient.workflowStates({
+      filter: teamId ? { team: { id: { eq: teamId } } } : undefined,
+    });
+    return {
+      success: true,
+      data: states.nodes.map((state) => ({
+        id: state.id,
+        name: state.name,
+        type: state.type,
+        color: state.color,
+      })),
+    };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to load workflow states.");
+  }
 }
 
-// New actions for Customer Management
-export async function findCustomer(email: string) {
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function emailDomain(email: string): string | null {
+  const parts = normalizeEmail(email).split("@");
+  if (parts.length !== 2 || !parts[1]) return null;
+  return parts[1];
+}
+
+export async function findCustomer(email: string): Promise<ActionResult<CustomerDto | null>> {
   try {
-    requireAdmin();
-    // Linear doesn't have a direct "find by email" for customers easily exposed in simple filters sometimes,
-    // but let's try filtering.
+    await requireAdmin();
+
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+      return { success: true, data: null };
+    }
+
+    // Email is stored using externalIds in our integration model.
     const customers = await linearClient.customers({
-      filter: { email: { eq: email } }
+      first: 250,
+      filter: {
+        externalIds: {
+          some: {
+            eqIgnoreCase: normalizedEmail,
+          },
+        },
+      },
     });
-    
-    if (customers.nodes.length > 0) {
-      return { success: true, data: customers.nodes[0] };
-    }
-    return { success: true, data: null };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
 
-export async function createCustomer(name: string, email: string) {
-  try {
-    requireAdmin();
-    const response = await linearClient.createCustomer({
-      name,
-      email,
+    const found = customers.nodes.find((customer) => {
+      return customer.externalIds.some((externalId) => normalizeEmail(externalId) === normalizedEmail);
     });
-    
-    const customer = await response.customer;
-    if (!customer) {
-        return { success: false, error: "Failed to create customer" };
+
+    if (!found) {
+      return { success: true, data: null };
     }
 
     return {
       success: true,
-      data: { id: customer.id, name: customer.name, email: customer.email },
+      data: {
+        id: found.id,
+        name: found.name,
+        email: normalizedEmail,
+      },
     };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to find customer.");
+  }
+}
+
+export async function createCustomer(name: string, email: string): Promise<ActionResult<CustomerDto>> {
+  try {
+    await requireAdmin();
+    const normalizedEmail = normalizeEmail(email);
+    const domain = emailDomain(normalizedEmail);
+    const response = await linearClient.createCustomer({
+      name,
+      externalIds: [normalizedEmail],
+      domains: domain ? [domain] : undefined,
+    });
+
+    const customer = await response.customer;
+    if (!customer) {
+      return { success: false, error: "Failed to create customer" };
+    }
+
+    return {
+      success: true,
+      data: {
+        id: customer.id,
+        name: customer.name,
+        email: normalizedEmail,
+      },
+    };
+  } catch (error: unknown) {
+    return actionError(error, "Failed to create customer.");
   }
 }

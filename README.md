@@ -1,52 +1,55 @@
 # Conbiz Ticket Support Platform
 
-A bidirectional ticket support platform integrated with Linear, built with Next.js and Tailwind CSS.
+Portal de tickets sincronizado con Linear, con modo de soporte y modo de proyecto.
 
-## Getting Started
+## Stack
 
-1.  **Environment Setup**:
-    Create a `.env.local` file in the root directory and add your Linear API Key:
-    ```bash
-    LINEAR_API_KEY=lin_api_...
-    ```
+- Next.js 16 (App Router + Server Actions)
+- React 19 + Tailwind CSS v4
+- Prisma 7 + SQLite
+- Linear SDK (GraphQL)
 
-2.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
+## Setup rapido
 
-3.  **Run Development Server**:
-    ```bash
-    npm run dev
-    ```
+1. Crear `.env.local`:
 
-4.  **Admin API Explorer**:
-    Visit `http://localhost:3000/admin/linear-explorer` to test the Linear connection and view your workspace structure.
+```bash
+LINEAR_API_KEY=lin_api_...
+DATABASE_URL="file:./dev.db"
+CONBIZ_AUTH_BYPASS=true
+LINEAR_WEBHOOK_SECRET=lin_wh_...
+```
 
-5.  **Webhook Development (Local)**:
-    To test bidirectional sync locally, use a tunnel like [ngrok](https://ngrok.com/):
-    
-    a. Install and run ngrok:
-    ```bash
-    ngrok http 3000
-    ```
-    b. Copy the HTTPS URL (e.g., `https://xxxx.ngrok-free.app`).
-    c. In Linear Settings -> API -> Webhooks, create a new webhook:
-       - URL: `https://xxxx.ngrok-free.app/api/webhooks/linear`
-       - Events: Select 'Issues', 'Comments', 'Customer Requests'
-    d. Copy the **Signing Secret** from Linear and add to `.env.local`:
-    ```bash
-    LINEAR_WEBHOOK_SECRET=lin_wh_...
-    ```
+2. Instalar dependencias:
 
-## Tech Stack
--   **Framework**: Next.js 15 (App Router)
--   **Styling**: Tailwind CSS v4, Font: Plus Jakarta Sans
--   **Integration**: Linear SDK
+```bash
+npm install
+```
 
-## Arquitectura y Flujos
--   Documento completo: `docs/arquitectura-sistemas.md`
+3. Verificar calidad:
 
-## Design System
--   Primary Color: `#FC6F5D`
--   Design tokens are configured in `app/globals.css`.
+```bash
+npm run lint
+npm run build
+```
+
+4. Ejecutar:
+
+```bash
+npm run dev
+```
+
+## Rutas principales
+
+- `/portal`
+- `/portal/settings`
+- `/admin/linear-explorer`
+- `/admin/users`
+
+## Documentacion
+
+- `docs/README.md`
+- `docs/architecture-overview.md`
+- `docs/runbooks/local-dev.md`
+- `docs/runbooks/linear-sync.md`
+- `docs/adr/ADR-001-portal-architecture.md`
