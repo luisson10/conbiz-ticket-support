@@ -30,9 +30,10 @@ RAILPACK_NODE_VERSION=22
 - Este repo incluye `railway.toml` con:
   - Builder: `RAILPACK`
   - Build command: `npm ci && npm run build`
-  - Start command: `npm run db:migrate:deploy && npm run start`
+  - Pre-deploy command: `./scripts/railway-predeploy.sh`
+  - Start command: `npm run start`
 
-Esto asegura que las migraciones de Prisma se apliquen automaticamente antes de levantar la app.
+Esto aplica migraciones antes del arranque y evita restart loops por errores de migracion en `start`.
 Si prefieres configurarlo manualmente desde UI de Railway, usa los mismos comandos.
 
 ## 4) Primera migracion en Postgres
