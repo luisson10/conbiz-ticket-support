@@ -4,7 +4,7 @@ import { Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import BoardTypeToggle from "@/app/portal/_components/board-type-toggle";
 import RecentActivityPopover from "@/app/portal/_components/recent-activity-popover";
-import type { ActivityItemDto } from "@/lib/contracts/portal";
+import type { ActivityItemDto, PortalMode } from "@/lib/contracts/portal";
 
 type AccountOption = { id: string; name: string };
 
@@ -13,8 +13,8 @@ type PortalHeaderProps = {
   accounts: AccountOption[];
   selectedAccountId: string | null;
   onSelectAccount: (accountId: string | null) => void;
-  portalType: "SUPPORT" | "PROJECT";
-  onChangePortalType: (value: "SUPPORT" | "PROJECT") => void;
+  portalType: PortalMode;
+  onChangePortalType: (value: PortalMode) => void;
   activityOpen: boolean;
   onToggleActivity: () => void;
   activityItems: ActivityItemDto[];

@@ -501,6 +501,7 @@ export async function getIssueDetails(issueId: string): Promise<ActionResult<Iss
         dueDate: issue.dueDate,
         priority: issue.priority,
         state: state?.name || "Unknown",
+        stateType: state?.type || null,
         stateColor: state?.color || "#cbd5f5",
         assigneeName: assignee?.name || "Unassigned",
         projectName: project?.name || null,
@@ -528,6 +529,20 @@ export async function createIssueComment(
     const trimmed = body.trim();
     if (!trimmed) {
       return { success: false, error: "Comment cannot be empty." };
+    }
+
+    const issue = await linearClient.issue(issueId);
+    if (!issue) {
+      return { success: false, error: "Issue not found." };
+    }
+
+    const state = await issue.state;
+    const stateType = state?.type?.toLowerCase();
+    if (stateType === "canceled" || stateType === "completed") {
+      return {
+        success: false,
+        error: "Comments are disabled for closed or canceled tickets.",
+      };
     }
 
     const response = await linearClient.createComment({

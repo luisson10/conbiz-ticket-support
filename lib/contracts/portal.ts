@@ -1,4 +1,5 @@
 export type BoardType = "SUPPORT" | "PROJECT";
+export type PortalMode = BoardType | "RELEASES";
 
 export type AccountDto = {
   id: string;
@@ -65,6 +66,7 @@ export type IssueDetailsDto = {
   dueDate?: string | null;
   priority?: number | null;
   state: string;
+  stateType?: string | null;
   stateColor: string;
   assigneeName: string;
   projectName?: string | null;

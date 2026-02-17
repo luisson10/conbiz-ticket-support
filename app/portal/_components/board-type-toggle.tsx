@@ -1,8 +1,10 @@
 "use client";
 
+import type { PortalMode } from "@/lib/contracts/portal";
+
 type BoardTypeToggleProps = {
-  value: "SUPPORT" | "PROJECT";
-  onChange: (value: "SUPPORT" | "PROJECT") => void;
+  value: PortalMode;
+  onChange: (value: PortalMode) => void;
 };
 
 export default function BoardTypeToggle({ value, onChange }: BoardTypeToggleProps) {
@@ -23,6 +25,14 @@ export default function BoardTypeToggle({ value, onChange }: BoardTypeToggleProp
         }`}
       >
         Proyecto
+      </button>
+      <button
+        onClick={() => onChange("RELEASES")}
+        className={`h-8 rounded-lg px-4 text-sm font-semibold ${
+          value === "RELEASES" ? "bg-gray-900 text-white" : "text-gray-600 hover:text-gray-900"
+        }`}
+      >
+        Releases
       </button>
     </div>
   );

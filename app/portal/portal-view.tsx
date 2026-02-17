@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { getSessionInfo } from "@/app/actions/session";
 import PortalHeader from "@/app/portal/_components/portal-header";
 import PortalToolbar from "@/app/portal/_components/portal-toolbar";
 import TicketTable from "@/app/portal/_components/ticket-table";
 import KanbanBoard from "@/app/portal/_components/kanban-board";
 import NewTicketModal from "@/app/portal/_components/new-ticket-modal";
 import TicketDetailsDrawer from "@/app/portal/_components/ticket-details-drawer";
+import ReleasesView from "@/app/portal/releases/releases-view";
 import { useBoardSelection } from "@/app/portal/_hooks/use-board-selection";
 import { useBoardPreferences } from "@/app/portal/_hooks/use-board-preferences";
 import { useBoardTickets } from "@/app/portal/_hooks/use-board-tickets";
@@ -95,6 +97,22 @@ export default function PortalView() {
   } = useNewTicket();
 
   const [search, setSearch] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSession() {
+      const response = await getSessionInfo();
+      if (!active || !response.success) return;
+      setIsAdmin(response.data.role === "ADMIN");
+    }
+
+    void loadSession();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredTickets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -156,27 +174,43 @@ export default function PortalView() {
       />
 
       <main className="mx-auto max-w-6xl px-6 py-6">
-        <PortalToolbar
-          selectedBoard={selectedBoard}
-          search={search}
-          onSearchChange={setSearch}
-          view={view}
-          onChangeView={updateBoardView}
-          sorts={sorts}
-          onChangeSorts={updateBoardSorts}
-          onCreateTicket={() => {
-            setShowNewTicket(true);
-          }}
-        />
-
-        {loadingBoards || loadingTickets ? (
-          <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white/70 py-24">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-          </div>
-        ) : view === "table" ? (
-          <TicketTable tickets={sortedTickets} sorts={sorts} onOpenTicket={openDetails} />
+        {portalType === "RELEASES" ? (
+          <ReleasesView
+            accountId={selectedAccountId}
+            isAdmin={isAdmin}
+            onOpenTicket={(issueId) => {
+              void openDetails(issueId);
+            }}
+          />
         ) : (
-          <KanbanBoard states={orderedStates} groupedTickets={groupedTickets} onOpenTicket={openDetails} />
+          <>
+            <PortalToolbar
+              selectedBoard={selectedBoard}
+              search={search}
+              onSearchChange={setSearch}
+              view={view}
+              onChangeView={updateBoardView}
+              sorts={sorts}
+              onChangeSorts={updateBoardSorts}
+              onCreateTicket={() => {
+                setShowNewTicket(true);
+              }}
+            />
+
+            {loadingBoards || loadingTickets ? (
+              <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white/70 py-24">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : view === "table" ? (
+              <TicketTable tickets={sortedTickets} sorts={sorts} onOpenTicket={openDetails} />
+            ) : (
+              <KanbanBoard
+                states={orderedStates}
+                groupedTickets={groupedTickets}
+                onOpenTicket={openDetails}
+              />
+            )}
+          </>
         )}
       </main>
 

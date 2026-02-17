@@ -15,6 +15,7 @@ model User {
   name             String
   role             String  @default("USER") // "ADMIN" or "USER"
   linearCustomerId String? // Link to Linear Customer ID
+  releases         Release[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -23,6 +24,8 @@ model Account {
   id        String   @id @default(cuid())
   name      String   @unique
   boards    Board[]
+  releaseScopes ReleaseAccount[]
+  releaseItems  ReleaseItem[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -30,6 +33,11 @@ model Account {
 enum BoardType {
   SUPPORT
   PROJECT
+}
+
+enum ReleaseStatus {
+  DRAFT
+  PUBLISHED
 }
 
 model Board {
@@ -45,4 +53,72 @@ model Board {
 
   @@index([accountId, type])
   @@unique([accountId, type])
+}
+
+model Release {
+  id              String         @id @default(cuid())
+  title           String
+  description     String
+  status          ReleaseStatus  @default(DRAFT)
+  publishedAt     DateTime?
+  createdByUserId String
+  createdBy       User           @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  accounts        ReleaseAccount[]
+  items           ReleaseItem[]
+  tagAssignments  ReleaseTagAssignment[]
+
+  @@index([status, publishedAt])
+}
+
+model ReleaseAccount {
+  id        String   @id @default(cuid())
+  releaseId String
+  accountId String
+  release   Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([releaseId, accountId])
+  @@index([accountId, releaseId])
+}
+
+model ReleaseItem {
+  id              String   @id @default(cuid())
+  releaseId       String
+  issueId         String
+  issueIdentifier String
+  title           String
+  stateName       String
+  stateType       String?
+  priority        Int?
+  boardType       BoardType
+  accountId       String
+  release         Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([releaseId, issueId])
+  @@index([releaseId])
+}
+
+model ReleaseTag {
+  id             String                 @id @default(cuid())
+  name           String
+  slug           String                 @unique
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  releaseLinks   ReleaseTagAssignment[]
+}
+
+model ReleaseTagAssignment {
+  id        String     @id @default(cuid())
+  releaseId String
+  tagId     String
+  release   Release    @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  tag       ReleaseTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([releaseId, tagId])
 }

@@ -30,6 +30,11 @@ export function useTicketDetails() {
 
   async function submitComment() {
     if (!details?.id) return;
+    const stateType = details.stateType?.toLowerCase();
+    if (stateType === "canceled" || stateType === "completed" || stateType === "closed") {
+      setCommentError("Comments are disabled for closed or canceled tickets.");
+      return;
+    }
 
     setCommentSubmitting(true);
     setCommentError(null);

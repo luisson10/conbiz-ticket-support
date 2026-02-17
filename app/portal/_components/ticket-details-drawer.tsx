@@ -37,6 +37,14 @@ export default function TicketDetailsDrawer({
   commentError,
 }: TicketDetailsDrawerProps) {
   if (!open) return null;
+  const normalizedStateType = details?.stateType?.toLowerCase() || "";
+  const normalizedStateName = details?.state?.toLowerCase() || "";
+  const commentsDisabled =
+    normalizedStateType === "canceled" ||
+    normalizedStateType === "completed" ||
+    normalizedStateType === "closed" ||
+    normalizedStateName === "canceled" ||
+    normalizedStateName === "closed";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30 animate-fade-in">
@@ -131,18 +139,27 @@ export default function TicketDetailsDrawer({
                   value={commentBody}
                   onChange={(e) => onChangeCommentBody(e.target.value)}
                   rows={3}
-                  placeholder="Leave a reply (synced to Linear with #sync)"
-                  className="w-full resize-none bg-transparent text-sm text-gray-700 outline-none"
+                  placeholder={
+                    commentsDisabled
+                      ? "Comments are disabled for closed or canceled tickets."
+                      : "Leave a reply (synced to Linear with #sync)"
+                  }
+                  disabled={commentsDisabled}
+                  className="w-full resize-none bg-transparent text-sm text-gray-700 outline-none disabled:cursor-not-allowed disabled:text-gray-400"
                 />
                 <div className="mt-2 flex items-center justify-between">
-                  {commentError ? (
+                  {commentsDisabled ? (
+                    <span className="text-xs text-gray-500">
+                      This ticket is closed or canceled. Comments are disabled.
+                    </span>
+                  ) : commentError ? (
                     <span className="text-xs text-red-500">{commentError}</span>
                   ) : (
                     <span className="text-xs text-gray-400">Only comments marked with #sync appear here.</span>
                   )}
                   <button
                     onClick={onSubmitComment}
-                    disabled={commentSubmitting}
+                    disabled={commentSubmitting || commentsDisabled}
                     className="rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
                   >
                     {commentSubmitting ? "Posting..." : "Post comment"}

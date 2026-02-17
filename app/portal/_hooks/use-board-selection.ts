@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getBoards } from "@/app/actions/boards";
-import type { BoardDto } from "@/lib/contracts/portal";
+import type { BoardDto, PortalMode } from "@/lib/contracts/portal";
 
 type AccountOption = {
   id: string;
@@ -15,7 +15,7 @@ export function useBoardSelection() {
   const [boards, setBoards] = useState<BoardDto[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [portalType, setPortalType] = useState<"SUPPORT" | "PROJECT">("SUPPORT");
+  const [portalType, setPortalType] = useState<PortalMode>("SUPPORT");
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [loadingBoards, setLoadingBoards] = useState(true);
 
@@ -24,9 +24,10 @@ export function useBoardSelection() {
 
   const scopedBoards = useMemo(
     () =>
-      boards.filter(
-        (board) => board.accountId === selectedAccountId && board.type === portalType
-      ),
+      boards.filter((board) => {
+        if (portalType === "RELEASES") return false;
+        return board.accountId === selectedAccountId && board.type === portalType;
+      }),
     [boards, selectedAccountId, portalType]
   );
 
@@ -76,10 +77,35 @@ export function useBoardSelection() {
   }, [requestedAccountId]);
 
   useEffect(() => {
-    if (requestedType === "PROJECT" || requestedType === "SUPPORT") {
+    if (
+      requestedType === "PROJECT" ||
+      requestedType === "SUPPORT" ||
+      requestedType === "RELEASES"
+    ) {
       setPortalType(requestedType);
     }
   }, [requestedType]);
+
+  useEffect(() => {
+    if (requestedType || !selectedAccountId) return;
+    try {
+      const stored = localStorage.getItem(`portal-mode:${selectedAccountId}`);
+      if (stored === "SUPPORT" || stored === "PROJECT" || stored === "RELEASES") {
+        setPortalType(stored);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [requestedType, selectedAccountId]);
+
+  useEffect(() => {
+    if (!selectedAccountId) return;
+    try {
+      localStorage.setItem(`portal-mode:${selectedAccountId}`, portalType);
+    } catch {
+      // ignore storage errors
+    }
+  }, [selectedAccountId, portalType]);
 
   useEffect(() => {
     if (!selectedAccountId || scopedBoards.length === 0) {
