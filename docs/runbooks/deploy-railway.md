@@ -22,11 +22,13 @@ LINEAR_API_KEY=lin_api_...
 LINEAR_WEBHOOK_SECRET=lin_wh_...
 CONBIZ_AUTH_BYPASS=false
 NODE_ENV=production
+RAILPACK_NODE_VERSION=22
 ```
 
 ## 3) Configurar comandos de build/deploy
 
 - Este repo incluye `railway.toml` con:
+  - Builder: `RAILPACK`
   - Build command: `npm ci && npm run build`
   - Start command: `npm run db:migrate:deploy && npm run start`
 
