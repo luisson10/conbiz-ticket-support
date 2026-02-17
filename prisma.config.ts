@@ -3,12 +3,40 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+function buildUrlFromPgEnv(): string | undefined {
+  const host = process.env["PGHOST"];
+  const port = process.env["PGPORT"] ?? "5432";
+  const user = process.env["PGUSER"];
+  const password = process.env["PGPASSWORD"];
+  const database = process.env["PGDATABASE"];
+
+  if (!host || !user || !password || !database) {
+    return undefined;
+  }
+
+  const encodedUser = encodeURIComponent(user);
+  const encodedPassword = encodeURIComponent(password);
+  const query = new URLSearchParams({
+    sslmode: process.env["PGSSLMODE"] ?? "require",
+  });
+
+  return `postgresql://${encodedUser}:${encodedPassword}@${host}:${port}/${database}?${query.toString()}`;
+}
+
+const datasourceUrl =
+  process.env["DATABASE_URL"] ??
+  process.env["DATABASE_PRIVATE_URL"] ??
+  process.env["DATABASE_PUBLIC_URL"] ??
+  process.env["POSTGRES_URL"] ??
+  process.env["POSTGRES_PRISMA_URL"] ??
+  buildUrlFromPgEnv();
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: datasourceUrl,
   },
 });
