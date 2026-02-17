@@ -56,10 +56,39 @@ export function useSettingsController() {
   }, [projectsByTeam]);
 
   const refreshData = useCallback(async (preserveAccountId?: string | null) => {
-    const [accountsRes, boardsRes, teamsRes] = await Promise.all([getAccounts(), getBoards(), getTeams()]);
+    const [accountsRaw, boardsRaw, teamsRaw] = await Promise.allSettled([
+      getAccounts(),
+      getBoards(),
+      getTeams(),
+    ]);
+
+    if (
+      accountsRaw.status === "rejected" ||
+      boardsRaw.status === "rejected" ||
+      teamsRaw.status === "rejected"
+    ) {
+      const messages: string[] = [];
+      if (accountsRaw.status === "rejected") messages.push("accounts request failed");
+      if (boardsRaw.status === "rejected") messages.push("boards request failed");
+      if (teamsRaw.status === "rejected") messages.push("teams request failed");
+      setErrorMessage(`No se pudo cargar la configuracion (${messages.join(", ")}).`);
+      return;
+    }
+
+    const accountsRes = accountsRaw.value;
+    const boardsRes = boardsRaw.value;
+    const teamsRes = teamsRaw.value;
 
     if (!accountsRes.success || !boardsRes.success || !teamsRes.success) {
-      setErrorMessage("No se pudo cargar la configuracion.");
+      const reasons: string[] = [];
+      if (!accountsRes.success) reasons.push(`accounts: ${accountsRes.error}`);
+      if (!boardsRes.success) reasons.push(`boards: ${boardsRes.error}`);
+      if (!teamsRes.success) reasons.push(`teams: ${teamsRes.error}`);
+      setErrorMessage(
+        reasons.length > 0
+          ? `No se pudo cargar la configuracion (${reasons.join(" | ")}).`
+          : "No se pudo cargar la configuracion."
+      );
       return;
     }
 

@@ -9,6 +9,7 @@ export type ActionFailure = {
 export type ActionResult<T> = ActionSuccess<T> | ActionFailure;
 
 export function actionError(error: unknown, fallback: string): ActionFailure {
+  console.error("[actionError]", fallback, error);
   if (error instanceof Error && error.message) {
     return { success: false, error: error.message };
   }
