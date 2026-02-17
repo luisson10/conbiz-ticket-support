@@ -4,7 +4,6 @@ import prisma from "@/lib/prisma";
 import { requireAdmin, requireAuth } from "@/lib/auth";
 import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 import type { BoardDto } from "@/lib/contracts/portal";
-import { BoardType } from "@prisma/client";
 
 type AccountRecord = {
   id: string;
@@ -36,7 +35,7 @@ function normalizeAccountName(value: string): string {
 function toBoardDto(board: {
   id: string;
   name: string;
-  type: BoardType;
+  type: BoardDto["type"];
   accountId: string;
   account: { id: string; name: string };
   teamId: string;

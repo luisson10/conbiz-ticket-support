@@ -4,7 +4,7 @@
 
 - Next.js 16 (App Router + Server Actions)
 - React 19 + Tailwind CSS v4
-- Prisma 7 + SQLite (`dev.db`)
+- Prisma 7 + PostgreSQL
 - Linear GraphQL SDK
 
 ## Capas
@@ -25,7 +25,7 @@
 ```mermaid
 flowchart LR
   UI[Portal UI + hooks] --> SA[Server Actions tipadas]
-  SA --> PR[(SQLite via Prisma)]
+  SA --> PR[(PostgreSQL via Prisma)]
   SA --> LIN[Linear SDK / GraphQL]
   LIN --> WEBHOOK[Webhook endpoint]
 ```

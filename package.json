@@ -2,17 +2,20 @@
   "name": "conbiz-ticket-support",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@linear/sdk": "^71.0.0",
-    "@prisma/adapter-better-sqlite3": "^7.3.0",
-    "better-sqlite3": "^12.6.2",
     "lucide-react": "^0.563.0",
     "next": "16.1.4",
     "react": "19.2.3",

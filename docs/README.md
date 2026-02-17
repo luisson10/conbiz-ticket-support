@@ -8,6 +8,8 @@ Este directorio reemplaza la documentacion monolitica con guias cortas y acciona
   - Arquitectura de alto nivel, responsabilidades por capa y flujo principal.
 - `docs/runbooks/local-dev.md`
   - Setup local, comandos y troubleshooting rapido.
+- `docs/runbooks/deploy-railway.md`
+  - Checklist de despliegue en Railway con Prisma + PostgreSQL.
 - `docs/runbooks/linear-sync.md`
   - Integracion con Linear (API key, comentarios `#sync`, webhooks).
 - `docs/adr/ADR-001-portal-architecture.md`
