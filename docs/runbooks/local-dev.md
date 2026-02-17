@@ -10,7 +10,7 @@
 
 ```bash
 LINEAR_API_KEY=lin_api_...
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?sslmode=require"
+DATABASE_URL="file:./dev.db"
 CONBIZ_AUTH_BYPASS=true
 ```
 
@@ -25,8 +25,6 @@ LINEAR_FILE_URL_EXPIRES_IN=300
 
 ```bash
 npm install
-npm run db:generate
-npm run db:migrate:deploy
 npm run lint
 npm run build
 npm run dev
