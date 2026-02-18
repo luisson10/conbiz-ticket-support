@@ -211,14 +211,18 @@ export function useSettingsController() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const res = await createAccount({ name });
-    if (res.success) {
-      setNewAccountName("");
-      setShowCreateAccount(false);
-      await refreshData(res.data.id);
-      setSuccessMessage("Cuenta creada correctamente.");
-    } else {
-      setErrorMessage(res.error || "No se pudo crear la cuenta.");
+    try {
+      const res = await createAccount({ name });
+      if (res.success) {
+        setNewAccountName("");
+        setShowCreateAccount(false);
+        await refreshData(res.data.id);
+        setSuccessMessage("Cuenta creada correctamente.");
+      } else {
+        setErrorMessage(res.error || "No se pudo crear la cuenta.");
+      }
+    } catch {
+      setErrorMessage("No se pudo crear la cuenta (server action failed).");
     }
 
     setSavingNewAccount(false);
@@ -237,12 +241,16 @@ export function useSettingsController() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const res = await updateAccount({ id: selectedAccount.id, name });
-    if (res.success) {
-      await refreshData(selectedAccount.id);
-      setSuccessMessage("Cuenta actualizada.");
-    } else {
-      setErrorMessage(res.error || "No se pudo actualizar la cuenta.");
+    try {
+      const res = await updateAccount({ id: selectedAccount.id, name });
+      if (res.success) {
+        await refreshData(selectedAccount.id);
+        setSuccessMessage("Cuenta actualizada.");
+      } else {
+        setErrorMessage(res.error || "No se pudo actualizar la cuenta.");
+      }
+    } catch {
+      setErrorMessage("No se pudo actualizar la cuenta (server action failed).");
     }
 
     setSavingAccount(false);
@@ -261,19 +269,23 @@ export function useSettingsController() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const res = await createBoard({
-      name: form.name,
-      type,
-      accountId: selectedAccount.id,
-      teamId: form.teamId,
-      projectId: form.projectId || null,
-    });
+    try {
+      const res = await createBoard({
+        name: form.name,
+        type,
+        accountId: selectedAccount.id,
+        teamId: form.teamId,
+        projectId: form.projectId || null,
+      });
 
-    if (res.success) {
-      await refreshData(selectedAccount.id);
-      setSuccessMessage(`Board de ${type === "SUPPORT" ? "soporte" : "proyecto"} creado.`);
-    } else {
-      setErrorMessage(res.error || "No se pudo crear el board.");
+      if (res.success) {
+        await refreshData(selectedAccount.id);
+        setSuccessMessage(`Board de ${type === "SUPPORT" ? "soporte" : "proyecto"} creado.`);
+      } else {
+        setErrorMessage(res.error || "No se pudo crear el board.");
+      }
+    } catch {
+      setErrorMessage("No se pudo crear el board (server action failed).");
     }
 
     setCreatingBoardType(null);
@@ -290,18 +302,22 @@ export function useSettingsController() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const res = await updateBoard({
-      id: board.id,
-      name: form.name,
-      teamId: form.teamId,
-      projectId: form.projectId || null,
-    });
+    try {
+      const res = await updateBoard({
+        id: board.id,
+        name: form.name,
+        teamId: form.teamId,
+        projectId: form.projectId || null,
+      });
 
-    if (res.success) {
-      await refreshData(selectedAccountId);
-      setSuccessMessage("Board actualizado.");
-    } else {
-      setErrorMessage(res.error || "No se pudo actualizar el board.");
+      if (res.success) {
+        await refreshData(selectedAccountId);
+        setSuccessMessage("Board actualizado.");
+      } else {
+        setErrorMessage(res.error || "No se pudo actualizar el board.");
+      }
+    } catch {
+      setErrorMessage("No se pudo actualizar el board (server action failed).");
     }
 
     setSavingBoardId(null);
