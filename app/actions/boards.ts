@@ -8,8 +8,6 @@ import type { BoardDto } from "@/lib/contracts/portal";
 type AccountRecord = {
   id: string;
   name: string;
-  createdAt: Date;
-  updatedAt: Date;
 };
 
 type CreateBoardInput = {
@@ -75,6 +73,7 @@ export async function getAccounts(): Promise<ActionResult<AccountRecord[]>> {
   try {
     await requireAuth();
     const accounts = await prisma.account.findMany({
+      select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
     return { success: true, data: accounts };
@@ -94,7 +93,7 @@ export async function createAccount(data: {
     }
 
     const existing = await prisma.account.findMany({
-      select: { id: true, name: true, createdAt: true, updatedAt: true },
+      select: { id: true, name: true },
     });
     const duplicateName = existing.find(
       (account) => account.name.trim().toLowerCase() === name.toLowerCase()
@@ -106,6 +105,7 @@ export async function createAccount(data: {
 
     const account = await prisma.account.create({
       data: { name },
+      select: { id: true, name: true },
     });
 
     return { success: true, data: account };
@@ -140,6 +140,7 @@ export async function updateAccount(data: {
     const account = await prisma.account.update({
       where: { id: data.id },
       data: { name },
+      select: { id: true, name: true },
     });
 
     return { success: true, data: account };
