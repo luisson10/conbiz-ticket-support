@@ -16,8 +16,10 @@
   },
   "dependencies": {
     "@linear/sdk": "^71.0.0",
+    "@prisma/adapter-pg": "^7.4.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.4",
+    "pg": "^8.18.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
