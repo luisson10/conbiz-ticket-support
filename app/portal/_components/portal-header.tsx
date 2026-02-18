@@ -2,6 +2,7 @@
 
 import { Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { logout } from "@/app/actions/auth";
 import BoardTypeToggle from "@/app/portal/_components/board-type-toggle";
 import RecentActivityPopover from "@/app/portal/_components/recent-activity-popover";
 import type { ActivityItemDto, PortalMode } from "@/lib/contracts/portal";
@@ -9,6 +10,7 @@ import type { ActivityItemDto, PortalMode } from "@/lib/contracts/portal";
 type AccountOption = { id: string; name: string };
 
 type PortalHeaderProps = {
+  isAdmin: boolean;
   selectedAccountName: string;
   accounts: AccountOption[];
   selectedAccountId: string | null;
@@ -25,6 +27,7 @@ type PortalHeaderProps = {
 };
 
 export default function PortalHeader({
+  isAdmin,
   selectedAccountName,
   accounts,
   selectedAccountId,
@@ -49,7 +52,7 @@ export default function PortalHeader({
         </div>
 
         <div className="flex flex-1 items-center justify-center">
-          <BoardTypeToggle value={portalType} onChange={onChangePortalType} />
+          <BoardTypeToggle value={portalType} onChange={onChangePortalType} allowReleases={isAdmin} />
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
@@ -75,12 +78,24 @@ export default function PortalHeader({
             onSelectItem={onSelectActivityItem}
           />
 
+          {isAdmin ? (
+            <button
+              onClick={() => router.push("/portal/settings")}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
+              title="Board settings"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          ) : null}
+
           <button
-            onClick={() => router.push("/portal/settings")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-primary/40 hover:text-primary"
-            title="Board settings"
+            onClick={() => {
+              void logout();
+            }}
+            className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300"
+            title="Cerrar sesion"
           >
-            <Settings className="h-4 w-4" />
+            Salir
           </button>
         </div>
       </div>

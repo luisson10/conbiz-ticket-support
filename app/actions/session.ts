@@ -5,7 +5,7 @@ import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 
 type SessionInfo = {
   userId: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "VIEWER";
   email?: string;
 };
 

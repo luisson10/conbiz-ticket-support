@@ -56,8 +56,16 @@ function toBoardDto(board: {
 
 export async function getBoards(): Promise<ActionResult<BoardDto[]>> {
   try {
-    await requireAuth();
+    const auth = await requireAuth();
     const boards = await prisma.board.findMany({
+      where:
+        auth.role === "ADMIN"
+          ? undefined
+          : {
+              id: {
+                in: auth.boardIds.length > 0 ? auth.boardIds : ["__no_board__"],
+              },
+            },
       include: {
         account: true,
       },
@@ -71,7 +79,7 @@ export async function getBoards(): Promise<ActionResult<BoardDto[]>> {
 
 export async function getAccounts(): Promise<ActionResult<AccountRecord[]>> {
   try {
-    await requireAuth();
+    await requireAdmin();
     const accounts = await prisma.account.findMany({
       select: { id: true, name: true },
       orderBy: { name: "asc" },

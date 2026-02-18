@@ -16,7 +16,8 @@ Portal de tickets sincronizado con Linear, con modo de soporte y modo de proyect
 ```bash
 LINEAR_API_KEY=lin_api_...
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?sslmode=require"
-CONBIZ_AUTH_BYPASS=true
+INITIAL_ADMIN_EMAIL=admin@conbiz.local
+INITIAL_ADMIN_PASSWORD=change-me-strong
 LINEAR_WEBHOOK_SECRET=lin_wh_...
 ```
 

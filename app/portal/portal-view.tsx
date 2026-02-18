@@ -114,6 +114,12 @@ export default function PortalView() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isAdmin && portalType === "RELEASES") {
+      setPortalType("SUPPORT");
+    }
+  }, [isAdmin, portalType, setPortalType]);
+
   const filteredTickets = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return tickets;
@@ -154,6 +160,7 @@ export default function PortalView() {
   return (
     <div className="min-h-screen bg-background">
       <PortalHeader
+        isAdmin={isAdmin}
         selectedAccountName={selectedAccountName}
         accounts={accounts}
         selectedAccountId={selectedAccountId}
@@ -185,6 +192,7 @@ export default function PortalView() {
         ) : (
           <>
             <PortalToolbar
+              canCreateTicket={isAdmin}
               selectedBoard={selectedBoard}
               search={search}
               onSearchChange={setSearch}
@@ -236,6 +244,7 @@ export default function PortalView() {
       />
 
       <TicketDetailsDrawer
+        canComment={isAdmin}
         open={detailsOpen}
         loading={detailsLoading}
         details={details}

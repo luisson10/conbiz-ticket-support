@@ -11,7 +11,8 @@
 ```bash
 LINEAR_API_KEY=lin_api_...
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?sslmode=require"
-CONBIZ_AUTH_BYPASS=true
+INITIAL_ADMIN_EMAIL=admin@conbiz.local
+INITIAL_ADMIN_PASSWORD=change-me-strong
 ```
 
 Opcional:

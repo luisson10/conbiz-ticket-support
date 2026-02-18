@@ -2,7 +2,7 @@
 
 import { linearClient } from "@/lib/linear";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAdmin, requireAuth } from "@/lib/auth";
 import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 import type {
   ActivityItemDto,
@@ -273,6 +273,11 @@ async function getIssueSnapshotsPage(
   );
 }
 
+function canAccessBoard(auth: { role: "ADMIN" | "VIEWER"; boardIds: string[] }, boardId: string): boolean {
+  if (auth.role === "ADMIN") return true;
+  return auth.boardIds.includes(boardId);
+}
+
 export async function getBoardTickets(
   boardId: string,
   options?: { first?: number; after?: string | null }
@@ -285,7 +290,10 @@ export async function getBoardTickets(
   }>
 > {
   try {
-    await requireAuth();
+    const auth = await requireAuth();
+    if (!canAccessBoard(auth, boardId)) {
+      return { success: false, error: "Forbidden" };
+    }
 
     const board = await prisma.board.findUnique({
       where: { id: boardId },
@@ -373,7 +381,10 @@ export async function getRecentActivity(
   options?: { limit?: number; since?: string | null; after?: string | null }
 ): Promise<ActionResult<ActivityItemDto[]>> {
   try {
-    await requireAuth();
+    const auth = await requireAuth();
+    if (!canAccessBoard(auth, boardId)) {
+      return { success: false, error: "Forbidden" };
+    }
 
     const board = await prisma.board.findUnique({
       where: { id: boardId },
@@ -524,7 +535,7 @@ export async function createIssueComment(
   body: string
 ): Promise<ActionResult<{ id: string; body: string; createdAt: string; userName: string }>> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const trimmed = body.trim();
     if (!trimmed) {

@@ -70,6 +70,12 @@ export default function SettingsView() {
               <div className="text-xs text-gray-500">Gestiona organizaciones y boards de soporte/proyecto</div>
             </div>
           </div>
+          <Link
+            href="/admin/users"
+            className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Gestionar usuarios
+          </Link>
         </div>
       </header>
 

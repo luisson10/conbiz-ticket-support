@@ -1,7 +1,7 @@
 "use server";
 
 import { linearClient } from "@/lib/linear";
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 
 type TeamDto = { id: string; name: string; key: string };
@@ -26,7 +26,7 @@ export async function checkConnection(): Promise<ActionResult<ViewerDto>> {
 
 export async function getTeams(): Promise<ActionResult<TeamDto[]>> {
   try {
-    await requireAuth();
+    await requireAdmin();
     const teams = await linearClient.teams();
     return {
       success: true,
@@ -43,7 +43,7 @@ export async function getTeams(): Promise<ActionResult<TeamDto[]>> {
 
 export async function getProjects(teamId?: string): Promise<ActionResult<ProjectDto[]>> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const projects = teamId
       ? await (await linearClient.team(teamId)).projects()
@@ -64,7 +64,7 @@ export async function getProjects(teamId?: string): Promise<ActionResult<Project
 
 export async function getLabels(teamId?: string): Promise<ActionResult<LabelDto[]>> {
   try {
-    await requireAuth();
+    await requireAdmin();
     const filter = teamId ? { team: { id: { eq: teamId } } } : undefined;
     const labels = await linearClient.issueLabels({ filter });
     return {
@@ -82,7 +82,7 @@ export async function getLabels(teamId?: string): Promise<ActionResult<LabelDto[
 
 export async function getWorkflowStates(teamId?: string): Promise<ActionResult<WorkflowStateDto[]>> {
   try {
-    await requireAuth();
+    await requireAdmin();
     const states = await linearClient.workflowStates({
       filter: teamId ? { team: { id: { eq: teamId } } } : undefined,
     });

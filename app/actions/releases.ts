@@ -111,7 +111,7 @@ function assertReleasePrismaModels() {
 
 async function ensureCreatorUser(input: {
   userId: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "VIEWER";
   email?: string;
 }) {
   const email = input.email?.trim().toLowerCase() || `${input.userId}@local.conbiz`;

@@ -2,7 +2,7 @@
 
 import { linearClient } from "@/lib/linear";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { actionError, type ActionResult } from "@/lib/contracts/action-result";
 
 type CreateTicketInput = {
@@ -19,7 +19,7 @@ export async function createTicket(
   data: CreateTicketInput
 ): Promise<ActionResult<CreateTicketResult>> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const board = await prisma.board.findUnique({
       where: { id: data.boardId },

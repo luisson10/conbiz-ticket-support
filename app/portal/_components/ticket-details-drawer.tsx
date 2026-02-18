@@ -14,6 +14,7 @@ import { priorityBadge } from "@/app/portal/_utils/priority";
 import MarkdownContent from "@/app/portal/_utils/markdown";
 
 type TicketDetailsDrawerProps = {
+  canComment: boolean;
   open: boolean;
   loading: boolean;
   details: IssueDetailsDto | null;
@@ -26,6 +27,7 @@ type TicketDetailsDrawerProps = {
 };
 
 export default function TicketDetailsDrawer({
+  canComment,
   open,
   loading,
   details,
@@ -40,6 +42,7 @@ export default function TicketDetailsDrawer({
   const normalizedStateType = details?.stateType?.toLowerCase() || "";
   const normalizedStateName = details?.state?.toLowerCase() || "";
   const commentsDisabled =
+    !canComment ||
     normalizedStateType === "canceled" ||
     normalizedStateType === "completed" ||
     normalizedStateType === "closed" ||
@@ -141,7 +144,9 @@ export default function TicketDetailsDrawer({
                   rows={3}
                   placeholder={
                     commentsDisabled
-                      ? "Comments are disabled for closed or canceled tickets."
+                      ? canComment
+                        ? "Comments are disabled for closed or canceled tickets."
+                        : "Tu rol es viewer: comentarios deshabilitados."
                       : "Leave a reply (synced to Linear with #sync)"
                   }
                   disabled={commentsDisabled}
@@ -150,7 +155,9 @@ export default function TicketDetailsDrawer({
                 <div className="mt-2 flex items-center justify-between">
                   {commentsDisabled ? (
                     <span className="text-xs text-gray-500">
-                      This ticket is closed or canceled. Comments are disabled.
+                      {canComment
+                        ? "This ticket is closed or canceled. Comments are disabled."
+                        : "Viewer role: comments are read-only."}
                     </span>
                   ) : commentError ? (
                     <span className="text-xs text-red-500">{commentError}</span>

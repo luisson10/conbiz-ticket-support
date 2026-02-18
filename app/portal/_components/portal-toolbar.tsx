@@ -7,6 +7,7 @@ import SortPopover from "@/app/portal/_components/sort-popover";
 import ViewToggle from "@/app/portal/_components/view-toggle";
 
 type PortalToolbarProps = {
+  canCreateTicket: boolean;
   selectedBoard: BoardDto | null;
   search: string;
   onSearchChange: (value: string) => void;
@@ -18,6 +19,7 @@ type PortalToolbarProps = {
 };
 
 export default function PortalToolbar({
+  canCreateTicket,
   selectedBoard,
   search,
   onSearchChange,
@@ -47,7 +49,7 @@ export default function PortalToolbar({
         <div className="flex h-10 items-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-500">
           Crea o selecciona un board para continuar
         </div>
-      ) : selectedBoard.type !== "PROJECT" ? (
+      ) : selectedBoard.type !== "PROJECT" && canCreateTicket ? (
         <button
           onClick={onCreateTicket}
           className="flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
@@ -55,9 +57,13 @@ export default function PortalToolbar({
           <Plus className="h-4 w-4" />
           Crear ticket
         </button>
-      ) : (
+      ) : selectedBoard.type === "PROJECT" ? (
         <div className="flex h-10 items-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-500">
           Vista proyecto: solo lectura para nuevos tickets
+        </div>
+      ) : (
+        <div className="flex h-10 items-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-500">
+          Rol viewer: solo lectura
         </div>
       )}
     </div>
