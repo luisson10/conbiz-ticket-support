@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createAccount,
   createBoard,
@@ -16,6 +16,7 @@ export const emptyBoardForm: BoardForm = {
   name: "",
   teamId: "",
   projectId: "",
+  categories: [],
 };
 
 export function useSettingsController() {
@@ -46,14 +47,34 @@ export function useSettingsController() {
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const projectsLoadingRef = useRef<Set<string>>(new Set());
 
   const loadProjectsForTeam = useCallback(async (teamId: string) => {
-    if (!teamId || projectsByTeam[teamId]) return;
-    const projectsRes = await getProjects(teamId);
-    if (projectsRes.success) {
-      setProjectsByTeam((prev) => ({ ...prev, [teamId]: projectsRes.data }));
+    if (!teamId) return;
+    if (projectsLoadingRef.current.has(teamId)) return;
+
+    let shouldFetch = false;
+    setProjectsByTeam((prev) => {
+      if (prev[teamId]) return prev;
+      shouldFetch = true;
+      return prev;
+    });
+
+    if (!shouldFetch) return;
+
+    projectsLoadingRef.current.add(teamId);
+    try {
+      const projectsRes = await getProjects(teamId);
+      if (projectsRes.success) {
+        setProjectsByTeam((prev) => {
+          if (prev[teamId]) return prev;
+          return { ...prev, [teamId]: projectsRes.data };
+        });
+      }
+    } finally {
+      projectsLoadingRef.current.delete(teamId);
     }
-  }, [projectsByTeam]);
+  }, []);
 
   const refreshData = useCallback(async (preserveAccountId?: string | null) => {
     const [accountsRaw, boardsRaw, teamsRaw] = await Promise.allSettled([
@@ -101,6 +122,7 @@ export function useSettingsController() {
         accountId: board.accountId,
         teamId: board.teamId,
         projectId: board.projectId,
+        categories: board.categories || [],
       }))
     );
     setTeams(teamsRes.data);
@@ -164,6 +186,7 @@ export function useSettingsController() {
         name: board.name,
         teamId: board.teamId,
         projectId: board.projectId || "",
+        categories: board.categories || [],
       };
     });
     setBoardForms(nextForms);
@@ -276,6 +299,7 @@ export function useSettingsController() {
         accountId: selectedAccount.id,
         teamId: form.teamId,
         projectId: form.projectId || null,
+        categories: type === "SUPPORT" ? form.categories : [],
       });
 
       if (res.success) {
@@ -308,6 +332,7 @@ export function useSettingsController() {
         name: form.name,
         teamId: form.teamId,
         projectId: form.projectId || null,
+        categories: form.categories,
       });
 
       if (res.success) {

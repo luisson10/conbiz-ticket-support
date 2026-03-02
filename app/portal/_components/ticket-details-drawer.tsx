@@ -55,7 +55,7 @@ export default function TicketDetailsDrawer({
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
             <div className="text-xs font-semibold text-gray-400">{details?.identifier}</div>
-            <h2 className="text-lg font-semibold text-gray-900">{details?.title || "Ticket details"}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{details?.title || "Detalles del ticket"}</h2>
           </div>
           <button onClick={onClose} className="rounded-md p-2 text-gray-500 hover:bg-gray-100">
             <X className="h-4 w-4" />
@@ -109,24 +109,24 @@ export default function TicketDetailsDrawer({
                   rel="noreferrer"
                   className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                 >
-                  View in Linear <ExternalLink className="h-3 w-3" />
+                  Ver en Linear <ExternalLink className="h-3 w-3" />
                 </a>
               )}
             </div>
 
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Description</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descripción</h3>
               <MarkdownContent value={details.description} />
             </div>
 
             <div>
               <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 <MessageSquare className="h-3 w-3" />
-                Comments
+                Comentarios
               </h3>
 
               <div className="mt-3 space-y-3">
-                {details.comments.length === 0 && <p className="text-sm text-gray-400">No comments yet.</p>}
+                {details.comments.length === 0 && <p className="text-sm text-gray-400">Sin comentarios aún.</p>}
                 {details.comments.map((comment) => (
                   <div key={comment.id} className="rounded-lg border border-gray-100 p-3">
                     <div className="text-xs font-semibold text-gray-500">
@@ -145,31 +145,30 @@ export default function TicketDetailsDrawer({
                   placeholder={
                     commentsDisabled
                       ? canComment
-                        ? "Comments are disabled for closed or canceled tickets."
+                        ? "Los comentarios están deshabilitados para tickets cerrados o cancelados."
                         : "Tu rol es viewer: comentarios deshabilitados."
-                      : "Leave a reply (synced to Linear with #sync)"
+                      : "Escribir comentario"
                   }
                   disabled={commentsDisabled}
                   className="w-full resize-none bg-transparent text-sm text-gray-700 outline-none disabled:cursor-not-allowed disabled:text-gray-400"
                 />
-                <div className="mt-2 flex items-center justify-between">
-                  {commentsDisabled ? (
-                    <span className="text-xs text-gray-500">
+                <div className="mt-2 flex items-center justify-end gap-3">
+                  {commentsDisabled && (
+                    <span className="mr-auto text-xs text-gray-500">
                       {canComment
-                        ? "This ticket is closed or canceled. Comments are disabled."
-                        : "Viewer role: comments are read-only."}
+                        ? "Este ticket está cerrado o cancelado. Los comentarios están deshabilitados."
+                        : "Rol de espectador: los comentarios son solo de lectura."}
                     </span>
-                  ) : commentError ? (
-                    <span className="text-xs text-red-500">{commentError}</span>
-                  ) : (
-                    <span className="text-xs text-gray-400">Only comments marked with #sync appear here.</span>
+                  )}
+                  {commentError && (
+                    <span className="mr-auto text-xs text-red-500">{commentError}</span>
                   )}
                   <button
                     onClick={onSubmitComment}
                     disabled={commentSubmitting || commentsDisabled}
-                    className="rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                    className="ml-auto shrink-0 rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
                   >
-                    {commentSubmitting ? "Posting..." : "Post comment"}
+                    {commentSubmitting ? "Publicando..." : "Publicar comentario"}
                   </button>
                 </div>
               </div>
@@ -178,10 +177,10 @@ export default function TicketDetailsDrawer({
             <div>
               <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 <Paperclip className="h-3 w-3" />
-                Attachments
+                Archivos
               </h3>
               <div className="mt-3 space-y-2">
-                {details.attachments.length === 0 && <p className="text-sm text-gray-400">No attachments.</p>}
+                {details.attachments.length === 0 && <p className="text-sm text-gray-400">Sin archivos.</p>}
                 {details.attachments.map((file) => (
                   <a
                     key={file.id}
@@ -190,7 +189,7 @@ export default function TicketDetailsDrawer({
                     rel="noreferrer"
                     className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-600 hover:border-primary/40"
                   >
-                    <span>{file.title || "Attachment"}</span>
+                    <span>{file.title || "Archivos"}</span>
                     <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
                   </a>
                 ))}
@@ -198,7 +197,7 @@ export default function TicketDetailsDrawer({
             </div>
           </div>
         ) : (
-          <div className="p-6 text-sm text-gray-500">Unable to load details.</div>
+          <div className="p-6 text-sm text-gray-500">No se pudieron cargar los detalles.</div>
         )}
       </div>
     </div>

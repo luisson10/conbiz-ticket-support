@@ -15,6 +15,7 @@ type CreateBoardInput = {
   teamId: string;
   projectId?: string | null;
   type: "SUPPORT" | "PROJECT";
+  categories?: string[];
   accountId?: string | null;
   accountName?: string | null;
 };
@@ -24,6 +25,7 @@ type UpdateBoardInput = {
   name: string;
   teamId: string;
   projectId?: string | null;
+  categories?: string[];
 };
 
 function normalizeAccountName(value: string): string {
@@ -38,6 +40,7 @@ function toBoardDto(board: {
   account: { id: string; name: string };
   teamId: string;
   projectId: string | null;
+  categories: string[];
   createdAt: Date;
   updatedAt: Date;
 }): BoardDto {
@@ -49,9 +52,18 @@ function toBoardDto(board: {
     account: board.account,
     teamId: board.teamId,
     projectId: board.projectId,
+    categories: board.categories,
     createdAt: board.createdAt,
     updatedAt: board.updatedAt,
   };
+}
+
+function isCategoriesFieldMismatch(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes("Unknown argument `categories`") ||
+    error.message.includes("column \"categories\"")
+  );
 }
 
 export async function getBoards(): Promise<ActionResult<BoardDto[]>> {
@@ -222,6 +234,10 @@ export async function createBoard(data: CreateBoardInput): Promise<ActionResult<
         accountId,
         teamId: data.teamId,
         projectId: data.projectId || null,
+        categories:
+          data.type === "SUPPORT"
+            ? (data.categories || []).map((category) => category.trim()).filter(Boolean)
+            : [],
       },
       include: {
         account: true,
@@ -230,6 +246,13 @@ export async function createBoard(data: CreateBoardInput): Promise<ActionResult<
 
     return { success: true, data: toBoardDto(board) };
   } catch (error: unknown) {
+    if (isCategoriesFieldMismatch(error)) {
+      return {
+        success: false,
+        error:
+          "La base de datos o Prisma client no estan actualizados para categorias. Ejecuta: npx prisma migrate dev && npx prisma generate y reinicia el servidor.",
+      };
+    }
     return actionError(error, "Failed to create board.");
   }
 }
@@ -248,6 +271,7 @@ export async function updateBoard(data: UpdateBoardInput): Promise<ActionResult<
         name,
         teamId: data.teamId,
         projectId: data.projectId || null,
+        categories: (data.categories || []).map((category) => category.trim()).filter(Boolean),
       },
       include: {
         account: true,
@@ -256,6 +280,13 @@ export async function updateBoard(data: UpdateBoardInput): Promise<ActionResult<
 
     return { success: true, data: toBoardDto(board) };
   } catch (error: unknown) {
+    if (isCategoriesFieldMismatch(error)) {
+      return {
+        success: false,
+        error:
+          "La base de datos o Prisma client no estan actualizados para categorias. Ejecuta: npx prisma migrate dev && npx prisma generate y reinicia el servidor.",
+      };
+    }
     return actionError(error, "Failed to update board.");
   }
 }

@@ -18,6 +18,7 @@ export function useRecentActivity(selectedBoardId: string | null) {
   const [activity, setActivity] = useState<ActivityItemDto[]>([]);
   const [seenActivityIds, setSeenActivityIds] = useState<Set<string>>(new Set());
   const [lastSeenTimestamp, setLastSeenTimestamp] = useState<string | null>(null);
+  const [hydratedBoardId, setHydratedBoardId] = useState<string | null>(null);
 
   const unreadActivityIds = useMemo(
     () => new Set(activity.map((item) => item.id).filter((id) => !seenActivityIds.has(id))),
@@ -25,14 +26,17 @@ export function useRecentActivity(selectedBoardId: string | null) {
   );
 
   useEffect(() => {
+    setHydratedBoardId(null);
     if (!selectedBoardId) {
       setSeenActivityIds(new Set());
       setLastSeenTimestamp(null);
       setActivity([]);
+      setHydratedBoardId(null);
       return;
     }
 
     try {
+      setActivity([]);
       const seenRaw = localStorage.getItem(`activity-seen:${selectedBoardId}`);
       if (seenRaw) {
         const parsed = JSON.parse(seenRaw);
@@ -48,6 +52,8 @@ export function useRecentActivity(selectedBoardId: string | null) {
     } catch {
       setSeenActivityIds(new Set());
       setLastSeenTimestamp(null);
+    } finally {
+      setHydratedBoardId(selectedBoardId);
     }
   }, [selectedBoardId]);
 
@@ -80,16 +86,16 @@ export function useRecentActivity(selectedBoardId: string | null) {
   );
 
   const refreshActivity = useCallback(
-    async (showLoader: boolean, since?: string | null) => {
-      if (!selectedBoardId) return;
+    async (boardId: string, showLoader: boolean, since?: string | null) => {
+      if (!boardId) return;
       if (showLoader) setActivityLoading(true);
 
-      const res = await getRecentActivity(selectedBoardId, {
+      const res = await getRecentActivity(boardId, {
         limit: 40,
         since: since ?? lastSeenTimestamp,
       });
 
-      if (res.success) {
+      if (res.success && selectedBoardId === boardId) {
         setActivity((prev) => {
           const map = new Map<string, ActivityItemDto>();
           [...res.data, ...prev].forEach((item) => map.set(item.id, item));
@@ -103,35 +109,46 @@ export function useRecentActivity(selectedBoardId: string | null) {
   );
 
   useEffect(() => {
-    if (!selectedBoardId) return;
+    if (!selectedBoardId || hydratedBoardId !== selectedBoardId) return;
 
     let cancelled = false;
+    const boardId = selectedBoardId;
 
     const refresh = async () => {
       if (cancelled) return;
       if (document.visibilityState !== "visible") return;
-      await refreshActivity(false, lastSeenTimestamp);
+      await refreshActivity(boardId, false, lastSeenTimestamp);
     };
 
-    void refreshActivity(false, lastSeenTimestamp);
+    void refreshActivity(boardId, false, lastSeenTimestamp);
     const intervalId = window.setInterval(refresh, 45_000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [selectedBoardId, lastSeenTimestamp, refreshActivity]);
+  }, [selectedBoardId, hydratedBoardId, lastSeenTimestamp, refreshActivity]);
 
   useEffect(() => {
-    if (!selectedBoardId || !activityOpen) return;
-    void refreshActivity(true, lastSeenTimestamp);
-  }, [selectedBoardId, activityOpen, refreshActivity, lastSeenTimestamp]);
+    if (!selectedBoardId || hydratedBoardId !== selectedBoardId || !activityOpen) return;
+    void refreshActivity(selectedBoardId, true, lastSeenTimestamp);
+  }, [selectedBoardId, hydratedBoardId, activityOpen, refreshActivity, lastSeenTimestamp]);
 
   const clearAll = useCallback(() => {
+    if (!selectedBoardId) return;
+    const latest = getLatestTimestamp(activity);
+    if (latest) {
+      setLastSeenTimestamp(latest);
+      try {
+        localStorage.setItem(`activity-last-seen-ts:${selectedBoardId}`, latest);
+      } catch {
+        // ignore storage errors
+      }
+    }
     const allIds = activity.map((item) => item.id);
     markAsSeen(allIds);
     setActivity([]);
-  }, [activity, markAsSeen]);
+  }, [activity, markAsSeen, selectedBoardId]);
 
   const removeActivityAndMarkSeen = useCallback(
     (id: string) => {

@@ -198,6 +198,7 @@ function toBoardDto(board: {
   account: { id: string; name: string };
   teamId: string;
   projectId: string | null;
+  categories: string[];
   createdAt: Date;
   updatedAt: Date;
 }): BoardDto {
@@ -209,6 +210,7 @@ function toBoardDto(board: {
     account: board.account,
     teamId: board.teamId,
     projectId: board.projectId,
+    categories: board.categories,
     createdAt: board.createdAt,
     updatedAt: board.updatedAt,
   };

@@ -158,8 +158,9 @@ export default function PortalView() {
   }, [sortedTickets, orderedStates]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <PortalHeader
+    <div className="flex h-screen flex-col bg-background">
+      <div className="shrink-0">
+        <PortalHeader
         isAdmin={isAdmin}
         selectedAccountName={selectedAccountName}
         accounts={accounts}
@@ -179,8 +180,9 @@ export default function PortalView() {
           void openDetails(item.issueId);
         }}
       />
+      </div>
 
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      <main className="mx-auto flex min-h-0 max-w-6xl flex-1 flex-col overflow-hidden p-4">
         {portalType === "RELEASES" ? (
           <ReleasesView
             accountId={selectedAccountId}
@@ -191,7 +193,8 @@ export default function PortalView() {
           />
         ) : (
           <>
-            <PortalToolbar
+            <div className="shrink-0">
+              <PortalToolbar
               canCreateTicket={isAdmin}
               selectedBoard={selectedBoard}
               search={search}
@@ -204,19 +207,22 @@ export default function PortalView() {
                 setShowNewTicket(true);
               }}
             />
+            </div>
 
             {loadingBoards || loadingTickets ? (
-              <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white/70 py-24">
+              <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white/70 py-24">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
             ) : view === "table" ? (
               <TicketTable tickets={sortedTickets} sorts={sorts} onOpenTicket={openDetails} />
             ) : (
-              <KanbanBoard
-                states={orderedStates}
-                groupedTickets={groupedTickets}
-                onOpenTicket={openDetails}
-              />
+              <div className="flex min-h-0 flex-1 overflow-hidden">
+                <KanbanBoard
+                  states={orderedStates}
+                  groupedTickets={groupedTickets}
+                  onOpenTicket={openDetails}
+                />
+              </div>
             )}
           </>
         )}
@@ -225,6 +231,7 @@ export default function PortalView() {
       <NewTicketModal
         open={showNewTicket}
         boardName={selectedBoard?.name}
+        categories={selectedBoard?.categories || []}
         value={newTicket}
         onChange={setNewTicket}
         onClose={() => setShowNewTicket(false)}

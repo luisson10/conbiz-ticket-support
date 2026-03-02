@@ -10,6 +10,7 @@ export type Board = {
   accountId: string;
   teamId: string;
   projectId?: string | null;
+  categories: string[];
 };
 
 export type TeamOption = {
@@ -28,4 +29,5 @@ export type BoardForm = {
   name: string;
   teamId: string;
   projectId: string;
+  categories: string[];
 };

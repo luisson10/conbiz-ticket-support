@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Save } from "lucide-react";
 import type { Board, BoardForm, ProjectOption, TeamOption } from "@/app/portal/settings/types";
 
@@ -30,7 +31,26 @@ export default function BoardEditorCard({
   onSaveBoard,
   onCreateBoard,
 }: BoardEditorCardProps) {
+  const [categoryInput, setCategoryInput] = useState("");
   const label = type === "SUPPORT" ? "Board de soporte" : "Board de proyecto";
+  const showCategories = type === "SUPPORT";
+
+  function addCategory() {
+    const value = categoryInput.trim();
+    if (!value) return;
+    const exists = form.categories.some((category) => category.toLowerCase() === value.toLowerCase());
+    if (!exists) {
+      onChangeForm({ ...form, categories: [...form.categories, value] });
+    }
+    setCategoryInput("");
+  }
+
+  function removeCategory(name: string) {
+    onChangeForm({
+      ...form,
+      categories: form.categories.filter((category) => category !== name),
+    });
+  }
 
   if (board) {
     return (
@@ -87,6 +107,53 @@ export default function BoardEditorCard({
               ))}
             </select>
           </div>
+
+          {showCategories ? (
+            <div>
+              <label className="text-xs font-semibold text-gray-500">Categorias (labels)</label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={categoryInput}
+                  onChange={(e) => setCategoryInput(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addCategory();
+                    }
+                  }}
+                  placeholder="Agregar categoria"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={addCategory}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700"
+                >
+                  Add
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {form.categories.map((category) => (
+                  <span
+                    key={category}
+                    className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                  >
+                    {category}
+                    <button
+                      type="button"
+                      onClick={() => removeCategory(category)}
+                      className="text-gray-500 hover:text-red-600"
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+                {form.categories.length === 0 ? (
+                  <span className="text-xs text-gray-400">Sin categorias configuradas.</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <button
             onClick={() => onSaveBoard(board)}
@@ -151,6 +218,53 @@ export default function BoardEditorCard({
             ))}
           </select>
         </div>
+
+        {showCategories ? (
+          <div>
+            <label className="text-xs font-semibold text-gray-500">Categorias (labels)</label>
+            <div className="mt-1 flex gap-2">
+              <input
+                value={categoryInput}
+                onChange={(e) => setCategoryInput(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCategory();
+                  }
+                }}
+                placeholder="Agregar categoria"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={addCategory}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700"
+              >
+                Add
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {form.categories.map((category) => (
+                <span
+                  key={category}
+                  className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                >
+                  {category}
+                  <button
+                    type="button"
+                    onClick={() => removeCategory(category)}
+                    className="text-gray-500 hover:text-red-600"
+                  >
+                    x
+                  </button>
+                </span>
+              ))}
+              {form.categories.length === 0 ? (
+                <span className="text-xs text-gray-400">Sin categorias configuradas.</span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <button
           onClick={() => onCreateBoard(type)}

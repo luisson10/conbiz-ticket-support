@@ -12,21 +12,21 @@ type KanbanBoardProps = {
 
 export default function KanbanBoard({ states, groupedTickets, onOpenTicket }: KanbanBoardProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden pb-0">
         {states.map((state) => (
           <div
             key={state.id}
-            className="min-w-[260px] flex-1 rounded-2xl border border-gray-200 bg-white/70 p-4 shadow-sm"
+            className="flex min-h-0 min-w-[260px] flex-1 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white/70 p-4 shadow-sm"
           >
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex shrink-0 items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: state.color }} />
                 {state.name}
               </div>
               <span className="text-xs text-gray-400">{groupedTickets.get(state.id)?.length || 0}</span>
             </div>
-            <div className="space-y-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
               {(groupedTickets.get(state.id) || []).map((ticket) => (
                 <button
                   key={ticket.id}

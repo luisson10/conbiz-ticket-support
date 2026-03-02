@@ -14,6 +14,7 @@ export type BoardDto = {
   account: AccountDto;
   teamId: string;
   projectId?: string | null;
+  categories: string[];
   createdAt: Date;
   updatedAt: Date;
 };
