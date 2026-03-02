@@ -30,7 +30,6 @@ type CreateUserInput = {
 export async function createUser(data: CreateUserInput): Promise<ActionResult<UserDto>> {
   try {
     await requireAdmin();
-    const db = prisma as any;
     const email = data.email.trim().toLowerCase();
     const name = data.name.trim();
     const password = data.password.trim();
@@ -47,7 +46,7 @@ export async function createUser(data: CreateUserInput): Promise<ActionResult<Us
       return { success: false, error: "Un viewer debe tener al menos un board asignado." };
     }
 
-    const existingUser = await db.user.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
@@ -74,7 +73,7 @@ export async function createUser(data: CreateUserInput): Promise<ActionResult<Us
     }
 
     const passwordHash = hashPassword(password);
-    const user = await db.user.create({
+    const user = await prisma.user.create({
       data: {
         name,
         email,
@@ -104,7 +103,7 @@ export async function createUser(data: CreateUserInput): Promise<ActionResult<Us
       data: {
         ...user,
         role: user.role === "ADMIN" ? "ADMIN" : "VIEWER",
-        boardIds: user.boardAccess.map((entry: { boardId: string }) => entry.boardId),
+        boardIds: user.boardAccess.map((entry) => entry.boardId),
         hasPassword: Boolean(user.passwordHash),
       },
     };
@@ -116,8 +115,7 @@ export async function createUser(data: CreateUserInput): Promise<ActionResult<Us
 export async function getUsers(): Promise<ActionResult<UserDto[]>> {
   try {
     await requireAdmin();
-    const db = prisma as any;
-    const users = await db.user.findMany({
+    const users = await prisma.user.findMany({
       include: {
         boardAccess: {
           select: { boardId: true },
@@ -127,10 +125,10 @@ export async function getUsers(): Promise<ActionResult<UserDto[]>> {
     });
     return {
       success: true,
-      data: users.map((user: any) => ({
+      data: users.map((user) => ({
         ...user,
         role: user.role === "ADMIN" ? "ADMIN" : "VIEWER",
-        boardIds: user.boardAccess.map((entry: { boardId: string }) => entry.boardId),
+        boardIds: user.boardAccess.map((entry) => entry.boardId),
         hasPassword: Boolean(user.passwordHash),
       })),
     };

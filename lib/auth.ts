@@ -48,7 +48,6 @@ async function readLegacyAuth(): Promise<AuthContext | null> {
 }
 
 async function readSessionAuth(): Promise<AuthContext | null> {
-  const db = prisma as any;
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -56,7 +55,7 @@ async function readSessionAuth(): Promise<AuthContext | null> {
   const tokenHash = hashSessionToken(token);
   const now = new Date();
 
-  const session = await db.session.findUnique({
+  const session = await prisma.session.findUnique({
     where: { tokenHash },
     include: {
       user: {
@@ -74,7 +73,7 @@ async function readSessionAuth(): Promise<AuthContext | null> {
   if (!session) return null;
   if (session.expiresAt <= now || !session.user.isActive) return null;
 
-  await db.session.update({
+  await prisma.session.update({
     where: { id: session.id },
     data: { updatedAt: now },
   });
@@ -83,7 +82,7 @@ async function readSessionAuth(): Promise<AuthContext | null> {
     userId: session.user.id,
     role: session.user.role === "ADMIN" ? "ADMIN" : "VIEWER",
     email: session.user.email,
-    boardIds: session.user.boardAccess.map((entry: { boardId: string }) => entry.boardId),
+    boardIds: session.user.boardAccess.map((entry) => entry.boardId),
   };
 }
 
@@ -94,10 +93,6 @@ export function isAuthBypassEnabled(): boolean {
 export async function getAuthContext(): Promise<AuthContext | null> {
   if (CAN_BYPASS) {
     return { userId: "dev-user", role: "ADMIN", boardIds: [] };
-  }
-
-  if (AUTH_BYPASS && process.env.NODE_ENV === "production") {
-    throw new Error("CONBIZ_AUTH_BYPASS cannot be enabled in production.");
   }
 
   const session = await readSessionAuth();
@@ -123,12 +118,11 @@ export async function requireAdmin(): Promise<AuthContext> {
 }
 
 export async function createUserSession(userId: string): Promise<void> {
-  const db = prisma as any;
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashSessionToken(token);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-  await db.session.create({
+  await prisma.session.create({
     data: {
       userId,
       tokenHash,
@@ -147,12 +141,11 @@ export async function createUserSession(userId: string): Promise<void> {
 }
 
 export async function clearUserSession(): Promise<void> {
-  const db = prisma as any;
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
     const tokenHash = hashSessionToken(token);
-    await db.session.deleteMany({
+    await prisma.session.deleteMany({
       where: { tokenHash },
     });
   }

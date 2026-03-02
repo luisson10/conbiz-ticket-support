@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 function buildUrlFromPgEnv(): string | undefined {
   const host = process.env["PGHOST"];
@@ -39,11 +40,8 @@ const prismaClientSingleton = () => {
     );
   }
 
-  const { PrismaPg } = require("@prisma/adapter-pg") as {
-    PrismaPg: new (options: { connectionString: string }) => unknown;
-  };
   const adapter = new PrismaPg({ connectionString: datasourceUrl });
-  return new PrismaClient({ adapter: adapter as any });
+  return new PrismaClient({ adapter });
 };
 
 declare global {

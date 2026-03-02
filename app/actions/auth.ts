@@ -13,16 +13,15 @@ type LoginInput = {
 
 export async function login(data: LoginInput): Promise<ActionResult<{ role: "ADMIN" | "VIEWER" }>> {
   try {
-    const db = prisma as any;
     const bootstrapEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
     const bootstrapPassword = process.env.INITIAL_ADMIN_PASSWORD?.trim();
     if (bootstrapEmail && bootstrapPassword) {
-      const existing = await db.user.findUnique({
+      const existing = await prisma.user.findUnique({
         where: { email: bootstrapEmail },
         select: { id: true, passwordHash: true },
       });
       if (!existing || !existing.passwordHash) {
-        await db.user.upsert({
+        await prisma.user.upsert({
           where: { email: bootstrapEmail },
           update: {
             name: "Initial Admin",
@@ -48,7 +47,7 @@ export async function login(data: LoginInput): Promise<ActionResult<{ role: "ADM
       return { success: false, error: "Email y password son requeridos." };
     }
 
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email },
       select: {
         id: true,
