@@ -214,7 +214,9 @@ export default function PortalView() {
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
             ) : view === "table" ? (
-              <TicketTable tickets={sortedTickets} sorts={sorts} onOpenTicket={openDetails} />
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <TicketTable tickets={sortedTickets} sorts={sorts} onOpenTicket={openDetails} />
+              </div>
             ) : (
               <div className="flex min-h-0 flex-1 overflow-hidden">
                 <KanbanBoard
