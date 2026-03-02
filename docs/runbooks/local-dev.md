@@ -2,24 +2,27 @@
 
 ## Requisitos
 
-- Node 20+
+- Node 22.12.0+
 - npm
 - Variables en `.env.local`
 
 ## Variables minimas
 
 ```bash
-LINEAR_API_KEY=lin_api_...
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?sslmode=require"
+LINEAR_API_KEY=lin_api_...
 INITIAL_ADMIN_EMAIL=admin@conbiz.local
 INITIAL_ADMIN_PASSWORD=change-me-strong
 ```
+
+> `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD` crean el primer admin al arrancar si no existe ningun usuario. Se pueden eliminar despues del primer login.
 
 Opcional:
 
 ```bash
 LINEAR_WEBHOOK_SECRET=lin_wh_...
 LINEAR_FILE_URL_EXPIRES_IN=300
+CONBIZ_AUTH_BYPASS=true   # omitir sesion en dev (bloqueado en production)
 ```
 
 ## Comandos

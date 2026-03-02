@@ -20,10 +20,14 @@ Variables minimas sugeridas en la app:
 DATABASE_URL=postgresql://...
 LINEAR_API_KEY=lin_api_...
 LINEAR_WEBHOOK_SECRET=lin_wh_...
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=strong-password-used-once
 CONBIZ_AUTH_BYPASS=false
 NODE_ENV=production
 RAILPACK_NODE_VERSION=22
 ```
+
+> `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD`: usados solo en el primer arranque para crear el admin inicial. Pueden eliminarse despues del primer login.
 
 ## 3) Configurar comandos de build/deploy
 
